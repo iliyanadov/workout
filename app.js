@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 12;
+  var BUILD = 13;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1122,7 +1122,7 @@
     }
 
     var prev=lastDone(sel,ex.id);
-    if(prev && pl.from==null)
+    if(prev)
       c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":"bodyweight")+" · "+prev.got.join(" / ")));
 
     /* rest panel, or the log button */
