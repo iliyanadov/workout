@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 17;
+  var BUILD = 18;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -106,6 +106,7 @@
 
   /* ---------------- state ---------------- */
   var LS = "workout.v2", LS_OLD = "workout.v1", EMAIL_KEY = "workout.email";
+  var SKIP_KEY = "workout.noaccount";
   var state = { v:2, days:{}, pending:{} };
   var sb=null, user=null, inFlight=false;
   var fatal=null, corrupt=false;
@@ -186,6 +187,10 @@
     if(fatal){ setSync("off",fatal); return; }
     if(corrupt){ setSync("off","Previous log unreadable — kept a copy, started fresh"); return; }
     var n=pendingCount();
+    if(!navigator.onLine){
+      setSync("off", n ? "Offline — "+n+" day"+(n>1?"s":"")+" waiting" : "Offline — saved on this phone");
+      return;
+    }
     if(!user) setSync("off", n? n+" day"+(n>1?"s":"")+" saved here, not synced" : "Logging on this device");
     else if(n)  setSync("off", n+" day"+(n>1?"s":"")+" waiting to sync");
     else        setSync("ok","Synced");
@@ -349,6 +354,7 @@
       document.getElementById("restsub").textContent = "Go.";
       chime(); if(navigator.vibrate) navigator.vibrate([200,90,200]);
       announce("Rest over. Next set.");
+      clearRest(true); render();        // record the real rest, then redraw with a log button
       holdScreen(false);
     }
   }
@@ -379,7 +385,7 @@
      failure set gets the grid, and a big-lift set that has just been given a
      number gets the reserve question. */
   function openLog(ex,i){
-    padCtx={ex:ex,i:i};
+    padCtx={ex:ex,i:i,d:sel};
     var target=stopTarget(sel,ex,i);
     if(target!=null) padShort(ex,i,target);
     else padGrid(ex,i,null);
@@ -390,9 +396,12 @@
     document.getElementById("padwhat").textContent=a;
     document.getElementById("padrange").textContent=b;
   }
-  function padRows(list){
+  /* A `mustAnswer` face has no dismiss: every exit is an answer, because a
+     silent Close would discard the integer the user already chose. */
+  function padRows(list,mustAnswer){
     var g=document.getElementById("padgrid");
     g.className="padstack"; g.innerHTML="";
+    document.getElementById("padclose").classList.toggle("hidden",!!mustAnswer);
     list.forEach(function(o){
       var b=el("button","bigopt"+(o.cls?" "+o.cls:""),o.t); b.type="button";
       b.addEventListener("click",o.fn); g.appendChild(b);
@@ -406,7 +415,7 @@
     padRows([
       { t:target+" — and I had two left", cls:"go",
         fn:function(){ logSet(ex,i,target,2); } },
-      { t:target+" — but that was everything", cls:"amber",
+      { t:target+" — but that was everything", cls:"go",
         fn:function(){ logSet(ex,i,target,0); } },
       { t:"A different number", cls:"ghost",
         fn:function(){ padGrid(ex,i,target); } }
@@ -430,6 +439,7 @@
       g.appendChild(b);
     }
     document.getElementById("padgrind").classList.add("hidden");
+    document.getElementById("padclose").classList.remove("hidden");
     var hasVal=(function(){ var r=peekEx(sel,ex.id); return !!(r&&r.r&&r.r[i]!=null&&r.r[i]!==""); })();
     document.getElementById("padclear").classList.toggle("hidden",!hasVal);
   }
@@ -439,13 +449,13 @@
      moment honesty is punished visually, the data dies. */
   function padQuestion(ex,i,v){
     if(!padCtx) return;
-    padCtx={ex:ex,i:i};
+    padCtx={ex:ex,i:i,d:padCtx.d||sel};
     if(i===ex.s-1){
       padHead(ex.n+" · set "+(i+1), "you logged "+v);
       padRows([
-        { t:"Yes, that was everything", cls:"go",  fn:function(){ logSet(ex,i,v,0); } },
-        { t:"No, I racked it early",    cls:"ghost", fn:function(){ logSet(ex,i,v,2); } }
-      ]);
+        { t:"Yes, that was everything", cls:"opt", fn:function(){ logSet(ex,i,v,0); } },
+        { t:"No, I racked it early",    cls:"opt", fn:function(){ logSet(ex,i,v,2); } }
+      ], true);
       document.getElementById("padwhat").textContent="Was that true failure?";
       return;
     }
@@ -454,11 +464,11 @@
       { t:"More than two left",       cls:"opt", fn:function(){ logSet(ex,i,v,3); } },
       { t:"About two — stopped on it",cls:"opt", fn:function(){ logSet(ex,i,v,2); } },
       { t:"Nothing left — that was failure", cls:"opt", fn:function(){ logSet(ex,i,v,0); } }
-    ]);
+    ], true);
   }
 
   function openPad(ex,i){
-    padCtx={ex:ex,i:i};
+    padCtx={ex:ex,i:i,d:sel};
     document.getElementById("padwhat").textContent = ex.n+" · set "+(i+1);
     var toFail = !ex.big || i===ex.s-1;
     document.getElementById("padrange").textContent =
@@ -493,21 +503,24 @@
   document.getElementById("padclose").addEventListener("click",closePad);
   document.getElementById("padclear").addEventListener("click",function(){
     if(!padCtx){ closePad(); return; }
-    var rec=peekEx(sel,padCtx.ex.id);
+    var d=padCtx.d||sel;
+    var rec=peekEx(d,padCtx.ex.id);
     if(rec){
       if(rec.r) rec.r[padCtx.i]=null;
       if(rec.q) rec.q[padCtx.i]=null;
       if(rec.g) rec.g[padCtx.i]=false;
-      touch();
+      touch(d);
     }
     closePad(); render();
   });
   document.getElementById("padgrind").addEventListener("click",function(){
     if(!padCtx) return;
-    var rec=entry(sel,padCtx.ex.id);
+    var d=padCtx.d||sel;
+    var rec=entry(d,padCtx.ex.id);
     rec.g=rec.g||[]; rec.g[padCtx.i]=!rec.g[padCtx.i];
+    rec.q=rec.q||[]; rec.q[padCtx.i]=rec.g[padCtx.i]?0:null;   // one fact, one pair of fields
     this.classList.toggle("on", !!rec.g[padCtx.i]);
-    touch(); renderDay();
+    touch(d); render();
   });
 
 
@@ -572,12 +585,14 @@
     if(i===0){
       if(prev && prev.e.nt!=null) return clamp(prev.e.nt, ex.lo, ex.hi+4);
       if(!prev) return ex.hi-1;
-      var est=estFailure(prev.got[0], (prev.e.q||[])[0]);
+      var q0=(prev.e.q||[])[0];
+      var est=estFailure(prev.got[0], q0);
       var t=est-2;
       var pw=planned(d,ex).w, ow=prev.e.w!=null?prev.e.w:ex.w;
       if(pw!=null && ow!=null && pw>ow) t-=1;
-      t=clamp(t, ex.lo, ex.hi+4);
-      return clamp(t, prev.got[0]-2, prev.got[0]+2);
+      t=clamp(clamp(t, ex.lo, ex.hi+4), prev.got[0]-2, prev.got[0]+2);
+      if(q0===0 || (prev.e.g||[])[0]) t=Math.max(1, Math.min(t, prev.got[0]-1));
+      return t;
     }
     var rec=peekEx(d,ex.id)||{};
     var r=(rec.r||[])[i-1], a=(rec.q||[])[i-1];
@@ -690,7 +705,7 @@
   function deleteSession(d){
     var r=state.days[d]; if(!r) return;
     r.trash={ ex:r.ex, k:r.k, run:r.run, warm:r.warm, ord:r.ord, skip:r.skip, at:Date.now() };
-    r.ex={}; r.k=null;
+    r.ex={};                     // keep r.k, or a rest-day session vanishes with its undo
     delete r.run; delete r.warm; delete r.ord; delete r.skip;
     touch(d);
     if(d===effToday()){
@@ -778,15 +793,17 @@
   /* ---------- writing a set ---------- */
   function logSet(ex,i,v,q){
     if(!padCtx) return;
-    var rec=entry(sel,ex.id);
-    if(rec.w==null) rec.w=planned(sel,ex).w;
+    var d=padCtx.d||sel;
+    if(d!==sel){ closePad(); return; }        // the day moved under the sheet
+    var rec=entry(d,ex.id);
+    if(rec.w==null) rec.w=planned(d,ex).w;
     rec.r=rec.r||[]; rec.r[i]=v;
     if(q!=null){ rec.q=rec.q||[]; rec.q[i]=q;
       rec.g=rec.g||[]; rec.g[i]=(q===0 && isTargetSet(ex,i)); }
-    touch();
+    touch(d);
     closePad();
-    if(exDone(sel,ex)){
-      var dc=dropCause(sel,ex);
+    if(exDone(d,ex)){
+      var dc=dropCause(d,ex);
       if(dc){ local.dropFor=ex.id; saveRun(); render(); return; }
     }
     beginRest(ex,i,restFor(ex,q));
@@ -885,6 +902,7 @@
         back.addEventListener("click",function(){ listMode=false; render(); });
         list.appendChild(back);
       }
+      if(trashOf(sel)) list.appendChild(deleteControl(sel));
       list.appendChild(el("div","empty","No session scheduled. Did you train today anyway? Pick what you did and log it here."));
       var row=document.createElement("div"); row.className="pickrow";
       ORDER.forEach(function(k){
@@ -1282,7 +1300,7 @@
     else c.appendChild(bigBtn("Done — log set "+(i+1),"go",function(){ openLog(ex,i); }));
 
     var row=el("div","cardfoot");
-    row.appendChild(quiet("Machine taken",function(){
+    if(!reps(peekEx(sel,ex.id)).length) row.appendChild(quiet("Machine taken",function(){
       var r=day(sel); r.skip=r.skip||{}; r.skip[ex.id]=1;
       if(!r.note) r.note="Machine taken"; touch(); render();
     }));
@@ -1974,7 +1992,7 @@
       btn.disabled=false; btn.textContent="Continue";
       if(r.error){
         err.textContent = /Invalid login/i.test(r.error.message)
-          ? "No log found for that address. Check the spelling."
+          ? "That address has no log yet on this server. Check the spelling, or tap ‘Log without signing in’ — it still records everything on this phone."
           : r.error.message;
         return;
       }
@@ -1988,6 +2006,7 @@
     if(e.key==="Enter") document.getElementById("gsubmit").click();
   });
   document.getElementById("gskip").addEventListener("click",function(){
+    try{ localStorage.setItem(SKIP_KEY,"1"); }catch(e){}
     showApp(); syncIdle();
   });
 
@@ -2012,16 +2031,21 @@
         }).catch(function(){ syncIdle(); });
         return;
       }
-      if(known || !navigator.onLine){ showApp(); syncIdle(); return; }
+      var skipped=false; try{ skipped=!!localStorage.getItem(SKIP_KEY); }catch(e){}
+      if(known || skipped || !navigator.onLine){ showApp(); syncIdle(); return; }
       showGate("");
     }).catch(function(){ showApp(); syncIdle(); });
   }catch(e){
-    showApp(); setSync("off","Offline — saving on this device only");
+    showApp(); setSync("off","Sync unavailable — saving on this device only");
   }
 
   function forceUpdate(){
+    if(fatal){ announce(fatal); setTab("week"); return; }   // the message says export — go there
     var m=document.getElementById("syncmsg");
-    if(!navigator.onLine){ m.textContent="Offline — cannot check for updates"; return; }
+    if(!navigator.onLine){
+      m.textContent="Offline — cannot check for updates";
+      setTimeout(syncIdle,2600); return;
+    }
     m.textContent="Checking for updates…";
     fetch("./version.json?t="+Date.now(),{cache:"no-store"})
       .then(function(r){ return r.ok?r.json():null; })
@@ -2065,15 +2089,18 @@
     if(!navigator.onLine) return;
     if(fatal) return;                                 // never reload over an unsaved session
     if(Date.now()-lastProbe < 60000) return;          // one probe a minute, not one a wake
-    if(local.started && !(peek(effToday())||{}).run) return;  // never reload mid-session
+    var rr=(peek(effToday())||{}).run;
+    if(local.started && !(rr && rr.en)) return;        // never reload mid-session
     lastProbe=Date.now();
     fetch("./version.json?t="+Date.now(),{cache:"no-store"})
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(j){
-        if(!j || typeof j.build !== "number" || j.build === BUILD) return;
+        if(!j || typeof j.build !== "number" || j.build <= BUILD) return;
         var once="workout.reloaded."+j.build;
-        try{ if(sessionStorage.getItem(once)) return; sessionStorage.setItem(once,"1"); }catch(e){}
-        purgeAndReload();
+        try{ if(sessionStorage.getItem(once)) return; }catch(e){}
+        purgeAndReload().then(function(){
+          try{ sessionStorage.setItem(once,"1"); }catch(e){}
+        }).catch(function(){});
       }).catch(function(){});
   }
 
@@ -2083,6 +2110,9 @@
         .then(function(reg){ if(reg && reg.update) reg.update(); })
         .catch(function(){});
       navigator.serviceWorker.addEventListener("controllerchange",function(){
+        if(fatal) return;                                  // never reload over an unsaved session
+        var rr=(peek(effToday())||{}).run;
+        if(local.started && !(rr && rr.en)) return;         // never reload mid-session
         try{ if(!sessionStorage.getItem("workout.swreload")){
           sessionStorage.setItem("workout.swreload","1"); location.reload(); } }catch(e){}
       });

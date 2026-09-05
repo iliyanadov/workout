@@ -3,7 +3,7 @@
    the phone immediately and cannot be pinned by GitHub Pages' max-age=600.
    Static assets stay cache-first. Offline still works: every network-first
    fetch falls back to the cache. */
-const CACHE = "workout-v17";
+const CACHE = "workout-v18";
 const CORE  = "./index.html";
 const CODE  = ["/workout/", "/workout/index.html", "/workout/app.js", "/workout/config.js", "/workout/version.json"];
 const SHELL = [
@@ -73,7 +73,15 @@ self.addEventListener("fetch", (e) => {
       net.catch(() => {});
       e.waitUntil(net.catch(() => {}));
 
-      if (!hit) { try { return await net; } catch (err) { return new Response("", { status: 504 }); } }
+      if (!hit) {
+        // Nothing cached to fall back to, so wait — but not forever.
+        const hard = new Promise(r => setTimeout(() => r("timeout"), 8000));
+        try {
+          const res = await Promise.race([net, hard]);
+          if (res === "timeout") return new Response("", { status: 504, statusText: "slow network" });
+          return res;
+        } catch (err) { return new Response("", { status: 504 }); }
+      }
       const timeout = new Promise(r => setTimeout(() => r(null), 2500));
       try {
         const res = await Promise.race([net, timeout]);
