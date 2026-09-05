@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 19;
+  var BUILD = 20;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -110,7 +110,7 @@
 
   /* ---------------- state ---------------- */
   var LS = "workout.v2", LS_OLD = "workout.v1", EMAIL_KEY = "workout.email";
-  var SKIP_KEY = "workout.noaccount";
+  var SKIP_KEY = "workout.noaccount", EXPORT_KEY = "workout.lastexport";
   var state = { v:2, days:{}, pending:{} };
   var sb=null, user=null, inFlight=false;
   var fatal=null, corrupt=false;
@@ -1503,6 +1503,11 @@
     if(rr.bw==null && wkq.bws.length<3 && !local.noBw) qn++;
     if(rr.p==null && !local.noP) qn++;
     qn++;
+    var nag=backupNag();
+    if(nag){
+      var nb=el("div","cue",nag+" Back it up from the Week tab.");
+      c.appendChild(nb);
+    }
     c.appendChild(bigBtn(qn===1?"Nearly done — one question":qn===2?"Nearly done — two questions":"Nearly done — three questions","go",function(){
       local.capturing=1; saveRun(); render(); window.scrollTo(0,0);
     }));
@@ -1795,6 +1800,8 @@
 
     box.appendChild(el("h2","sec","Backup"));
     var bx=el("div","stat");
+    var nag0=backupNag();
+    if(nag0) bx.appendChild(el("div","warnline",nag0));
     bx.appendChild(el("div","statnote",
       "Everything you have logged, as one file. The only copy that survives a cleared browser, "+
       "a lost phone or a Supabase outage. Worth doing after any session you would hate to lose."));
@@ -1825,6 +1832,29 @@
     box.appendChild(cb);
   }
 
+  function lastExportAt(){
+    try{ return +(localStorage.getItem(EXPORT_KEY)||0); }catch(e){ return 0; }
+  }
+  /* Sessions logged since the last export — the only number that says how much
+     is riding on one phone. */
+  function sessionsSinceExport(){
+    var at=lastExportAt();
+    return allSessions().filter(function(d){
+      var r=state.days[d];
+      return !at || (r && (r.updatedAt||0) > at);
+    }).length;
+  }
+  function markExported(){
+    try{ localStorage.setItem(EXPORT_KEY, String(Date.now())); }catch(e){}
+  }
+  function backupNag(){
+    var n=sessionsSinceExport();
+    if(n<6) return null;
+    return lastExportAt()
+      ? n+" sessions since your last backup. It lives on this phone and one server."
+      : n+" sessions logged and never backed up. It lives on this phone and one server.";
+  }
+
   function exportAll(btn){
     var payload={ v:2, build:BUILD, exported:new Date().toISOString(), days:state.days };
     var text=JSON.stringify(payload,null,1);
@@ -1833,7 +1863,8 @@
     try{ file=new File([text],name,{type:"application/json"}); }catch(e){}
     if(file && navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
       navigator.share({files:[file],title:"Workout log"})
-        .then(function(){ btn.textContent="Exported"; setTimeout(function(){ btn.textContent="Export everything"; },2200); })
+        .then(function(){ markExported(); btn.textContent="Exported";
+          setTimeout(function(){ btn.textContent="Export everything"; render(); },2200); })
         .catch(function(){ downloadFallback(text,name,btn); });
       return;
     }
@@ -1845,7 +1876,9 @@
       var a=document.createElement("a"); a.href=url; a.download=name;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); },4000);
-      btn.textContent="Exported"; setTimeout(function(){ btn.textContent="Export everything"; },2200);
+      markExported();
+      btn.textContent="Exported";
+      setTimeout(function(){ btn.textContent="Export everything"; render(); },2200);
     }catch(e){ btn.textContent="Could not export"; }
   }
 
