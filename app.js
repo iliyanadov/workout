@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 14;
+  var BUILD = 15;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -107,20 +107,40 @@
   /* ---------------- state ---------------- */
   var LS = "workout.v2", LS_OLD = "workout.v1", EMAIL_KEY = "workout.email";
   var state = { v:2, days:{}, pending:{} };
-  var sb=null, user=null, inFlight=false, storageWarned=false;
+  var sb=null, user=null, inFlight=false;
+  var fatal=null, corrupt=false;
 
-  function loadLocal(){
+  function quarantine(raw){
+    corrupt = true;
     try{
-      var raw = localStorage.getItem(LS);
-      if(raw){ var p=JSON.parse(raw); if(p&&p.days){ state=p; state.pending=state.pending||{}; return; } }
+      if(raw && !localStorage.getItem(LS+".unreadable"))
+        localStorage.setItem(LS+".unreadable", raw);   // keep the FIRST bad copy only
+    }catch(e){}
+  }
+  function loadLocal(){
+    var raw=null;
+    try{
+      raw = localStorage.getItem(LS);
+      if(raw){
+        var p=JSON.parse(raw);
+        if(p && p.days){ state=p; state.pending=state.pending||{}; return; }
+        quarantine(raw);                                // parsed, but not a log
+      }
+    }catch(e){ quarantine(raw); }
+    try{
       var old = localStorage.getItem(LS_OLD);
       if(old){ var q=JSON.parse(old); if(q&&q.days){ state={v:2,days:q.days,pending:{}};
         Object.keys(q.days).forEach(function(k){ state.pending[k]=1; }); saveLocal(); } }
-    }catch(e){ state={v:2,days:{},pending:{}}; }
+    }catch(e){}
   }
   function saveLocal(){
-    try{ localStorage.setItem(LS, JSON.stringify(state)); }
-    catch(e){ if(!storageWarned){ storageWarned=true; setSync("off","Storage full — copy your week out"); } }
+    try{
+      localStorage.setItem(LS, JSON.stringify(state));
+      if(fatal){ fatal=null; syncIdle(); }
+    }catch(e){
+      fatal = "NOT SAVED on this device — export from the Week tab now";
+      setSync("off", fatal);
+    }
   }
   function rememberedEmail(){ try{ return localStorage.getItem(EMAIL_KEY)||""; }catch(e){ return ""; } }
 
@@ -152,11 +172,14 @@
   function pendingCount(){ return Object.keys(state.pending||{}).length; }
 
   function setSync(cls,msg){
+    if(fatal){ cls="off"; msg=fatal; }              // never let a green lie print over it
     var e=document.getElementById("sync");
     e.className = "chip" + (cls?" "+cls:"");
     document.getElementById("syncmsg").textContent = msg + "  ·  b" + BUILD;
   }
   function syncIdle(){
+    if(fatal){ setSync("off",fatal); return; }
+    if(corrupt){ setSync("off","Previous log unreadable — kept a copy, started fresh"); return; }
     var n=pendingCount();
     if(!user) setSync("off", n? n+" day"+(n>1?"s":"")+" saved here, not synced" : "Logging on this device");
     else if(n)  setSync("off", n+" day"+(n>1?"s":"")+" waiting to sync");
@@ -634,9 +657,32 @@
     return { name:sess.name, sets:sets, held:held, tot:tot };
   }
 
-  var pendingDel=null, delTimer=null;
+  var pendingDel=null, delTimer=null, armedAt=0;
+  function trashOf(d){
+    var r=peek(d); if(!r||!r.trash) return null;
+    if(Date.now()-(r.trash.at||0) > 86400000) return null;      // one day to change your mind
+    if(hasReps(d)) return null;                                  // superseded by new work
+    return r.trash;
+  }
+  function hasReps(d){
+    var r=peek(d);
+    return !!(r && r.ex && Object.keys(r.ex).some(function(k){ return reps(r.ex[k]).length; }));
+  }
+  function trashSets(t){
+    if(!t||!t.ex) return 0;
+    return Object.keys(t.ex).reduce(function(n,k){ return n+reps(t.ex[k]).length; },0);
+  }
+  function undoDelete(d){
+    var r=state.days[d], t=r&&r.trash; if(!t) return;
+    r.ex=t.ex||{}; r.k=t.k||null;
+    if(t.run) r.run=t.run; if(t.warm!=null) r.warm=t.warm;
+    if(t.ord) r.ord=t.ord; if(t.skip) r.skip=t.skip;
+    delete r.trash;
+    touch(d); pendingDel=null; render();
+  }
   function deleteSession(d){
     var r=state.days[d]; if(!r) return;
+    r.trash={ ex:r.ex, k:r.k, run:r.run, warm:r.warm, ord:r.ord, skip:r.skip, at:Date.now() };
     r.ex={}; r.k=null;
     delete r.run; delete r.warm; delete r.ord; delete r.skip;
     touch(d);
@@ -650,16 +696,34 @@
 
   function deleteControl(d){
     var wrap=el("div","endrow");
-    var armed=(pendingDel===d);
+    var t=trashOf(d);
+    if(t){
+      var u=el("button","quietbtn","Undo delete — restore "+trashSets(t)+" sets");
+      u.type="button";
+      u.addEventListener("click",function(){ undoDelete(d); });
+      wrap.appendChild(u);
+      return wrap;
+    }
+    if(!hasReps(d)) return wrap;
     var sum=sessionSummary(d);
-    var b=el("button","quietbtn"+(armed?" danger":""),
-      armed ? "Tap again to delete "+(sum?sum.sets+" sets":"this session") : "Delete this session");
-    b.type="button";
+    if(pendingDel===d){
+      /* Two buttons, and the destructive one is NOT where the arming tap landed. */
+      var keep=el("button","quietbtn","Keep it"); keep.type="button";
+      keep.addEventListener("click",function(){ pendingDel=null; render(); });
+      var del=el("button","quietbtn danger",
+        "Delete "+(sum?sum.sets:"")+" sets — undoable today"); del.type="button";
+      del.addEventListener("click",function(){
+        if(Date.now()-armedAt < 700) return;      // ignore a double-tap arriving as one gesture
+        deleteSession(d);
+      });
+      wrap.appendChild(keep); wrap.appendChild(del);
+      return wrap;
+    }
+    var b=el("button","quietbtn","Delete this session"); b.type="button";
     b.addEventListener("click",function(){
-      if(pendingDel===d){ deleteSession(d); return; }
-      pendingDel=d; render();
+      pendingDel=d; armedAt=Date.now(); render();
       if(delTimer) clearTimeout(delTimer);
-      delTimer=setTimeout(function(){ if(pendingDel===d){ pendingDel=null; render(); } },5000);
+      delTimer=setTimeout(function(){ if(pendingDel===d){ pendingDel=null; render(); } },6000);
     });
     wrap.appendChild(b);
     return wrap;
@@ -805,7 +869,7 @@
         list.appendChild(back2);
       }
       sess.ex.forEach(function(ex){ list.appendChild(exCard(ex)); });
-      if(sessionSummary(sel)) list.appendChild(deleteControl(sel));
+      if(sessionSummary(sel) || trashOf(sel)) list.appendChild(deleteControl(sel));
       document.getElementById("dayhint").innerHTML =
         "Tap a set to log it. Anything that turned into a grind when it should have stopped two short, mark it on the pad — that is the difference between the app telling you to hold the weight and telling you to drop it.";
     } else {
@@ -972,7 +1036,11 @@
     if(rec.run && rec.run.en){ box.appendChild(doneCard(order)); return; }
 
     /* IDLE — nothing started */
-    if(!local.started && cnt.done===0){ box.appendChild(startCard(sess,order,cnt)); return; }
+    if(!local.started && cnt.done===0){
+      box.appendChild(startCard(sess,order,cnt));
+      if(trashOf(sel)) box.appendChild(deleteControl(sel));
+      return;
+    }
 
     /* CAPTURES */
     if(local.capturing){ box.appendChild(capturesCard()); return; }
@@ -999,7 +1067,7 @@
 
     /* the column */
     order.forEach(function(ex,j){
-      if(skipped(sel,ex)){ box.appendChild(tickLine("– "+ex.n,"skipped")); return; }
+      if(skipped(sel,ex)){ box.appendChild(skippedLine(ex)); return; }
       if(exDone(sel,ex)){ box.appendChild(doneLine(ex)); return; }
       if(cur && ex.id===cur.ex.id){
         if(local.dropFor===ex.id){ box.appendChild(dropCard(ex)); return; }
@@ -1082,7 +1150,24 @@
       local.started=Date.now(); saveRun();
       var r=day(sel); r.run=r.run||{}; r.run.st=Date.now(); touch(); render();
     }));
-    c.appendChild(quiet("Log it yourself instead",function(){ listMode=true; render(); }));
+    var foot=el("div","cardfoot");
+    foot.appendChild(quiet("Log it yourself instead",function(){ listMode=true; render(); }));
+    foot.appendChild(quiet(local.picking?"Never mind":"Doing a different session?",function(){
+      local.picking=!local.picking; saveRun(); render();
+    }));
+    c.appendChild(foot);
+    if(local.picking){
+      var prow=el("div","pickrow");
+      ORDER.forEach(function(k){
+        if(k===sessionKey(sel)) return;
+        var pb=el("button","pick",PLAN[k].name);
+        pb.addEventListener("click",function(){
+          day(sel).k=k; local.picking=0; saveRun(); touch(); render();
+        });
+        prow.appendChild(pb);
+      });
+      c.appendChild(prow);
+    }
     return c;
   }
 
@@ -1450,6 +1535,17 @@
       var cur=cursor(sel);
       ord.splice(cur?ord.indexOf(cur.ex.id):0,0,ex.id);
       r.ord=ord; touch(); clearRest(false); render();
+    });
+    return l;
+  }
+  function skippedLine(ex){
+    var l=el("button","line pend"); l.type="button";
+    l.appendChild(el("span","lmark",""));
+    l.appendChild(el("span","lname",ex.n));
+    l.appendChild(el("span","ltag","skipped · tap to put back"));
+    l.addEventListener("click",function(){
+      var r=day(sel); if(r.skip) delete r.skip[ex.id];
+      touch(); render();
     });
     return l;
   }
@@ -1869,6 +1965,7 @@
   var lastProbe=0;
   function freshen(){
     if(!navigator.onLine) return;
+    if(fatal) return;                                 // never reload over an unsaved session
     if(Date.now()-lastProbe < 60000) return;          // one probe a minute, not one a wake
     if(local.started && !(peek(effToday())||{}).run) return;  // never reload mid-session
     lastProbe=Date.now();
