@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 15;
+  var BUILD = 16;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -139,7 +139,7 @@
       if(fatal){ fatal=null; syncIdle(); }
     }catch(e){
       fatal = "NOT SAVED on this device — export from the Week tab now";
-      setSync("off", fatal);
+      setSync("off", fatal); announce(fatal);
     }
   }
   function rememberedEmail(){ try{ return localStorage.getItem(EMAIL_KEY)||""; }catch(e){ return ""; } }
@@ -170,6 +170,11 @@
   }
 
   function pendingCount(){ return Object.keys(state.pending||{}).length; }
+
+  function announce(msg){
+    var l=document.getElementById("live");
+    if(l){ l.textContent=""; setTimeout(function(){ l.textContent=msg; },50); }
+  }
 
   function setSync(cls,msg){
     if(fatal){ cls="off"; msg=fatal; }              // never let a green lie print over it
@@ -343,6 +348,7 @@
       document.getElementById("rest").classList.add("done");
       document.getElementById("restsub").textContent = "Go.";
       chime(); if(navigator.vibrate) navigator.vibrate([200,90,200]);
+      announce("Rest over. Next set.");
       holdScreen(false);
     }
   }
@@ -1104,7 +1110,7 @@
 
   function runHeader(sess,cnt){
     var h=el("div","runhead");
-    h.appendChild(el("div","runname",sess.name));
+    h.appendChild(el("h2","runname",sess.name));
     var segs=el("div","segs");
     for(var i=0;i<cnt.total;i++) segs.appendChild(el("span","seg"+(i<cnt.done?" on":"")));
     h.appendChild(segs);
@@ -1118,7 +1124,7 @@
   function startCard(sess,order,cnt){
     var c=el("div","card start");
     c.appendChild(el("div","kicker",whenLabel(sel).toUpperCase()));
-    c.appendChild(el("div","bigtitle",sess.name));
+    c.appendChild(el("h2","bigtitle",sess.name));
     c.appendChild(el("div","sub",sess.sub));
     var sets=0; order.forEach(function(e){ sets+=e.s; });
     c.appendChild(el("div","meta2",order.length+" exercises · "+sets+" sets · about "+minsLeft(sel)+" min"));
@@ -1201,7 +1207,7 @@
     var target=stopTarget(sel,ex,i);
 
     var head=el("div","cardhead");
-    head.appendChild(el("div","cardname",ex.n));
+    head.appendChild(el("h2","cardname",ex.n));
     head.appendChild(el("div","cardtag",ex.big?"BIG LIFT":"ACCESSORY"));
     c.appendChild(head);
 
@@ -1340,7 +1346,7 @@
     var got=reps(peekEx(sel,ex.id));
     var c=el("div","card drop");
     c.appendChild(el("div","dropnums",got.join(" · ")));
-    c.appendChild(el("div","cardname",ex.n));
+    c.appendChild(el("h2","cardname",ex.n));
     if(got[0]-got[got.length-1]>3)
       c.appendChild(el("div","warnline","That is one working set and the rest that do not count."));
     c.appendChild(el("div","dropline",dc.line));
@@ -1662,6 +1668,19 @@
 
     renderHistory(box);
 
+    box.appendChild(el("h2","sec","Backup"));
+    var bx=el("div","stat");
+    bx.appendChild(el("div","statnote",
+      "Everything you have logged, as one file. The only copy that survives a cleared browser, "+
+      "a lost phone or a Supabase outage. Worth doing after any session you would hate to lose."));
+    var eb=el("button","copybtn","Export everything");
+    eb.addEventListener("click",function(){ exportAll(eb); });
+    bx.appendChild(eb);
+    var ib=el("button","copybtn","Restore from a file");
+    ib.addEventListener("click",function(){ importPick(ib); });
+    bx.appendChild(ib);
+    box.appendChild(bx);
+
     var cb=el("button","copybtn","Copy week for review");
     cb.addEventListener("click",function(){
       var t=weekText(m,st);
@@ -1672,6 +1691,69 @@
         }).catch(function(){ cb.textContent="Could not copy"; });
     });
     box.appendChild(cb);
+  }
+
+  function exportAll(btn){
+    var payload={ v:2, build:BUILD, exported:new Date().toISOString(), days:state.days };
+    var text=JSON.stringify(payload,null,1);
+    var name="workout-"+todayISO()+".json";
+    var file=null;
+    try{ file=new File([text],name,{type:"application/json"}); }catch(e){}
+    if(file && navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+      navigator.share({files:[file],title:"Workout log"})
+        .then(function(){ btn.textContent="Exported"; setTimeout(function(){ btn.textContent="Export everything"; },2200); })
+        .catch(function(){ downloadFallback(text,name,btn); });
+      return;
+    }
+    downloadFallback(text,name,btn);
+  }
+  function downloadFallback(text,name,btn){
+    try{
+      var url=URL.createObjectURL(new Blob([text],{type:"application/json"}));
+      var a=document.createElement("a"); a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); },4000);
+      btn.textContent="Exported"; setTimeout(function(){ btn.textContent="Export everything"; },2200);
+    }catch(e){ btn.textContent="Could not export"; }
+  }
+
+  var pendingImport=null;
+  function importPick(btn){
+    if(pendingImport){ applyImport(pendingImport,btn); return; }
+    var inp=document.createElement("input");
+    inp.type="file"; inp.accept="application/json,.json";
+    inp.addEventListener("change",function(){
+      var f=inp.files && inp.files[0]; if(!f) return;
+      var fr=new FileReader();
+      fr.onload=function(){
+        var p=null;
+        try{ p=JSON.parse(String(fr.result)); }catch(e){}
+        if(!p || !p.days){ btn.textContent="That file is not a workout log"; return; }
+        var n=Object.keys(p.days).length;
+        pendingImport=p;
+        btn.textContent="Tap again to merge "+n+" day"+(n===1?"":"s");
+        setTimeout(function(){
+          if(pendingImport===p){ pendingImport=null; btn.textContent="Restore from a file"; }
+        },8000);
+      };
+      fr.readAsText(f);
+    });
+    inp.click();
+  }
+  function applyImport(p,btn){
+    var added=0,updated=0,same=0;
+    Object.keys(p.days).forEach(function(d){
+      var incoming=p.days[d], local=state.days[d];
+      if(!local){ state.days[d]=incoming; state.pending[d]=1; added++; return; }
+      if((incoming.updatedAt||0) > (local.updatedAt||0)){
+        state.days[d]=incoming; state.pending[d]=1; updated++;
+      } else same++;
+    });
+    saveLocal(); push();
+    pendingImport=null;
+    btn.textContent=added+" added · "+updated+" updated · "+same+" already current";
+    announce("Restore complete. "+added+" added, "+updated+" updated.");
+    setTimeout(function(){ btn.textContent="Restore from a file"; render(); },3500);
   }
 
   function weekText(m,st){

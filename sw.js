@@ -3,7 +3,7 @@
    the phone immediately and cannot be pinned by GitHub Pages' max-age=600.
    Static assets stay cache-first. Offline still works: every network-first
    fetch falls back to the cache. */
-const CACHE = "workout-v15";
+const CACHE = "workout-v16";
 const CORE  = "./index.html";
 const CODE  = ["/workout/", "/workout/index.html", "/workout/app.js", "/workout/config.js", "/workout/version.json"];
 const SHELL = [

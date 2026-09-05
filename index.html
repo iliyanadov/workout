@@ -44,6 +44,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button{font-family:inherit}
 .hidden{display:none!important}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 #gate{position:fixed;inset:0;z-index:100;background:var(--ground);display:flex;
   flex-direction:column;justify-content:center;padding:calc(24px + var(--top)) 24px calc(24px + var(--bot))}
@@ -73,8 +75,8 @@ header{position:sticky;top:0;z-index:30;background:var(--ground);padding-top:var
   border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}
 .tab[aria-selected="true"]{background:var(--surface);color:var(--ink)}
 .chip{display:flex;align-items:center;gap:6px;font:500 12px/1 "IBM Plex Sans",sans-serif;
-  color:var(--muted);padding:4px 0 11px;background:transparent;border:0;cursor:pointer;
-  font-family:inherit;text-align:left;min-height:32px}
+  color:var(--muted);padding:6px 0 12px;background:transparent;border:0;cursor:pointer;
+  font-family:inherit;text-align:left;min-height:44px}
 .chip .d{width:7px;height:7px;border-radius:50%;background:var(--faint);flex-shrink:0}
 .chip.ok .d{background:var(--good)}
 .chip.off .d{background:var(--warn)}
@@ -116,7 +118,7 @@ header{position:sticky;top:0;z-index:30;background:var(--ground);padding-top:var
   color:var(--ink);font:600 14px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
 .movedpill{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--muted)}
 .movedpill button{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
-  border-radius:8px;min-height:38px;padding:0 12px;font:600 12px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
+  border-radius:8px;min-height:44px;padding:0 12px;font:600 12px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
 
 .ex{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
   padding:13px;margin-bottom:10px}
@@ -128,7 +130,7 @@ header{position:sticky;top:0;z-index:30;background:var(--ground);padding-top:var
 .bumped{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--accent-soft);
   border-radius:8px;padding:8px 10px;font-size:12px;color:var(--accent);line-height:1.35}
 .bumped button{margin-left:auto;border:1px solid var(--accent);background:transparent;color:var(--accent);
-  border-radius:7px;min-height:36px;padding:0 11px;font:600 12px/1 "IBM Plex Sans",sans-serif;cursor:pointer;flex-shrink:0}
+  border-radius:7px;min-height:44px;padding:0 13px;font:600 12px/1 "IBM Plex Sans",sans-serif;cursor:pointer;flex-shrink:0}
 .wrow{display:flex;align-items:center;gap:8px;margin:10px 0 11px}
 .wlab{font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .wgt{display:flex;align-items:center;gap:3px;margin-left:auto}
@@ -148,7 +150,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   color:var(--muted);padding-top:21px;flex-shrink:0;width:32px}
 .sets{display:flex;gap:7px;flex:1;min-width:0}
 .slot{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.slotbtn{width:100%;height:58px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);
+.slotbtn{width:100%;height:58px;border:1px solid #3D454E;border-radius:10px;background:var(--surface-2);
   color:var(--ink);font:600 23px/1 "IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;cursor:pointer;
   display:flex;align-items:center;justify-content:center}
 .slotbtn.empty{color:var(--faint);font-weight:500}
@@ -254,10 +256,10 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 .sessline.hist:first-child{border-top:0}
 .endrow{display:flex;justify-content:center;padding:6px 0 20px}
 .runhead{background:var(--ground);padding:2px 0 12px;margin-bottom:4px}
-.runname{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:26px;
+.runname{margin:0;font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:26px;
   line-height:1;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
 .segs{display:flex;gap:3px;margin-bottom:7px}
-.seg{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.seg{flex:1;height:5px;border-radius:3px;background:#3D454E}
 .seg.on{background:var(--accent)}
 .runsub{font:500 12px/1 "IBM Plex Sans",sans-serif;color:var(--muted);letter-spacing:.03em}
 
@@ -268,7 +270,7 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 .card.warm{border-color:var(--line)}
 .kicker{font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.11em;text-transform:uppercase;
   color:var(--muted);margin-bottom:9px}
-.bigtitle{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:36px;
+.bigtitle{margin:0;font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:36px;
   line-height:1;text-transform:uppercase;letter-spacing:.02em}
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
 .meta2{font-size:13px;color:var(--ink-2);margin-top:10px}
@@ -296,7 +298,7 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 .warmthen{font-size:13px;color:var(--ink-2);margin-top:12px}
 
 .cardhead{display:flex;align-items:center;gap:10px}
-.cardname{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:24px;
+.cardname{margin:0;font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700;font-size:24px;
   line-height:1.05;text-transform:uppercase;letter-spacing:.02em;flex:1;min-width:0}
 .cardtag{font:600 10px/1 "IBM Plex Sans",sans-serif;letter-spacing:.1em;color:var(--accent);flex-shrink:0}
 .wrow2{display:flex;align-items:center;gap:10px;margin-top:14px}
@@ -382,6 +384,8 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
   <div class="gerr" id="gerr"></div>
 </div>
 
+<h1 class="sr">Workout — training log</h1>
+<div id="live" class="sr" aria-live="polite" role="status"></div>
 <header>
   <div class="wrap">
     <div class="hrow">
