@@ -91,7 +91,8 @@
   function inBlock(d){ return d >= BLOCK; }
 
   var today = todayISO();
-  var sel = today < BLOCK ? BLOCK : today;
+  function effToday(){ return today < BLOCK ? BLOCK : today; }
+  var sel = effToday();
 
   /* ---------------- state ---------------- */
   var LS = "workout.v2", LS_OLD = "workout.v1", EMAIL_KEY = "workout.email";
@@ -437,8 +438,8 @@
 
   function loadLocal2(){
     try{ var r=JSON.parse(localStorage.getItem(RUNK)||"null");
-         local = (r && r.d===today) ? r : { d:today }; }
-    catch(e){ local = { d:today }; }
+         local = (r && r.d===effToday()) ? r : { d:effToday() }; }
+    catch(e){ local = { d:effToday() }; }
     local.warmTicks = local.warmTicks || [];
   }
   function saveRun(){ try{ localStorage.setItem(RUNK, JSON.stringify(local)); }catch(e){} }
@@ -603,7 +604,7 @@
       var ds=addDays(m,i), dt=parse(ds);
       var b=document.createElement("button");
       b.className="day "+(sessionKey(ds)?"train":"rest")+" "+dayMark(ds)+
-                  (ds===today?" today":"")+(inBlock(ds)?"":" out");
+                  (ds===effToday()?" today":"")+(inBlock(ds)?"":" out");
       if(ds===sel) b.setAttribute("aria-current","date");
       b.innerHTML='<span class="dow">'+DOW[dt.getDay()]+'</span><span class="dnum">'+dt.getDate()+
                   '</span><span class="dot"></span>';
@@ -660,7 +661,7 @@
         clr.addEventListener("click",function(){ day(sel).k=null; touch(); renderDay(); });
         mp.appendChild(clr); pick.appendChild(mp);
       }
-      if(listMode && sel===today){
+      if(listMode && sel===effToday()){
         var back2=el("button","quietbtn","Back to the guided session");
         back2.addEventListener("click",function(){ listMode=false; render(); });
         list.appendChild(back2);
@@ -669,7 +670,7 @@
       document.getElementById("dayhint").innerHTML =
         "Tap a set to log it. Anything that turned into a grind when it should have stopped two short, mark it on the pad — that is the difference between the app telling you to hold the weight and telling you to drop it.";
     } else {
-      if(listMode && sel===today){
+      if(listMode && sel===effToday()){
         var back=el("button","quietbtn","Back to the guided session");
         back.addEventListener("click",function(){ listMode=false; render(); });
         list.appendChild(back);
@@ -799,7 +800,7 @@
 
   /* ---------------- guided column: rendering ---------------- */
   function runActive(){
-    return !listMode && sel===today && inBlock(sel) && !!sessionOf(sel);
+    return !listMode && sel===effToday() && inBlock(sel) && !!sessionOf(sel);
   }
   function chrome(show){
     ["weeknav","daystrip"].forEach(function(id){
@@ -1480,13 +1481,13 @@
   function go(n){
     var t=addDays(sel,n);
     if(t<BLOCK) t=BLOCK;
-    if(mondayOf(t)>mondayOf(today)) return;
+    if(mondayOf(t)>mondayOf(effToday())) return;
     sel=t; stopRest(); closePad(); render();
   }
   document.getElementById("wprev").addEventListener("click",function(){ go(-7); });
   document.getElementById("wnext").addEventListener("click",function(){ go(7); });
   document.getElementById("wtoday").addEventListener("click",function(){
-    sel = today<BLOCK ? BLOCK : today; stopRest(); closePad(); render(); });
+    sel = effToday(); stopRest(); closePad(); render(); });
 
   function renderNav(){
     var m=mondayOf(sel), wn=weekNo(m);
@@ -1495,10 +1496,10 @@
       a+=" "+parse(m).getFullYear(); b+=" "+parse(addDays(m,6)).getFullYear();
     }
     var t=document.getElementById("wtoday");
-    t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===today?" · today":"");
-    t.disabled = (sel===today);
+    t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===effToday()?" · today":"");
+    t.disabled = (sel===effToday());
     document.getElementById("wprev").disabled = (mondayOf(addDays(sel,-7)) < mondayOf(BLOCK));
-    document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > mondayOf(today));
+    document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > mondayOf(effToday()));
   }
 
   function render(){
@@ -1512,9 +1513,9 @@
   function checkRollover(){
     var t=todayISO();
     if(t===today) return;
-    var wasToday=(sel===today);
+    var wasToday=(sel===effToday());
     today=t;
-    if(wasToday) sel = t<BLOCK ? BLOCK : t;
+    if(wasToday) sel = effToday();
     loadLocal2(); listMode=false;
     if(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     render();
