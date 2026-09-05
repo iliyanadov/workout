@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 21;
+  var BUILD = 22;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1318,16 +1318,37 @@
     }
     else{
       var minus=el("button","wbtn","−"); minus.type="button"; minus.setAttribute("aria-label","Less weight");
-      var val=el("div","wbig",(pl.w==null?"—":pl.w)+" kg");
+      /* Typable, not just steppable: if the pin is on a different number than the
+         app expects, +/- is the wrong tool. Commit on input and never re-render
+         here — a render destroys the field and drops the iOS keypad mid-number. */
+      var val=el("div","wbox");
+      var wIn=document.createElement("input");
+      wIn.className="winput"; wIn.type="number"; wIn.inputMode="decimal"; wIn.step="any";
+      wIn.value = pl.w==null ? "" : pl.w;
+      wIn.placeholder="—";
+      wIn.setAttribute("aria-label",ex.n+" weight in kg");
+      wIn.addEventListener("input",function(){
+        var n=parseFloat(wIn.value), r=entry(sel,ex.id);
+        if(wIn.value===""){ r.w=null; }
+        else if(!isNaN(n)&&n>=0){ r.w=Math.round(n*10)/10; }
+        touch();
+      });
+      val.appendChild(wIn); val.appendChild(el("span","wunit","kg"));
       var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
       // From nothing, land on a usable plate rather than crawling up in 2.5s.
       var stepG=stepOf(sel,ex);
+      /* Read the live value, not the one captured when this card rendered —
+         otherwise a typed weight is silently stepped from the stale number. */
+      function curW(){
+        var own=(peekEx(sel,ex.id)||{}).w;
+        return own!=null ? own : pl.w;
+      }
       minus.addEventListener("click",function(){
-        if(pl.w==null) return;
-        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((pl.w-stepG)*10)/10); touch(); render(); });
+        var c0=curW(); if(c0==null) return;
+        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((c0-stepG)*10)/10); touch(); render(); });
       plus.addEventListener("click",function(){
-        var r=entry(sel,ex.id);
-        r.w = pl.w==null ? 10 : Math.round((pl.w+stepG)*10)/10;
+        var c0=curW(), r=entry(sel,ex.id);
+        r.w = c0==null ? 10 : Math.round((c0+stepG)*10)/10;
         touch(); render(); });
       wr.appendChild(minus); wr.appendChild(val); wr.appendChild(plus);
     }
