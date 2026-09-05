@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 25;
+  var BUILD = 26;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -825,8 +825,8 @@
 
   function renderHistory(box){
     var all=allSessions();
-    box.appendChild(el("h2","sec","History"));
-    if(!all.length){ box.appendChild(el("div","empty","Nothing logged yet. Sessions appear here as you do them.")); return; }
+    box.appendChild(el("h2","sec", all.length ? "Every session · "+all.length : "Every session"));
+    if(!all.length){ box.appendChild(el("div","empty","Nothing logged yet. Every session you do appears here, newest first, and tapping one opens that day.")); return; }
     var card=el("div","stat");
     all.slice(0,40).forEach(function(d){
       var s=sessionSummary(d); if(!s) return;
@@ -1799,6 +1799,16 @@
     s2.appendChild(el("div","statnote", st.done>=4
       ? "All four sessions in. That is the week."
       : (4-st.done)+" session"+(4-st.done>1?"s":"")+" left this week."));
+    var nAll=allSessions().length;
+    if(nAll){
+      var jump=el("button","quietbtn","See all "+nAll+" session"+(nAll>1?"s":"")+" ↓");
+      jump.addEventListener("click",function(){
+        var h=[].slice.call(document.querySelectorAll("#weekbody h2.sec"))
+                .filter(function(x){ return /^Every session/.test(x.textContent); })[0];
+        if(h) h.scrollIntoView({block:"start"});
+      });
+      s2.appendChild(jump);
+    }
     box.appendChild(s2);
 
     var roll=monthRollup();
@@ -1852,7 +1862,7 @@
       box.appendChild(w);
     } else box.appendChild(el("div","empty","Nothing dropping off more than 3 reps. That is the whole target."));
 
-    box.appendChild(el("h2","sec","Sessions"));
+    box.appendChild(el("h2","sec","This week, set by set"));
     var sv=el("div","stat");
     if(!st.lines.length) sv.appendChild(el("div","empty","Nothing logged this week yet."));
     st.lines.forEach(function(x){
