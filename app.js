@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 22;
+  var BUILD = 23;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1655,6 +1655,13 @@
       r.warm = local.warmSkipped?0:1;
       touch(); local.capturing=0; local.ended=0; saveRun(); render(); window.scrollTo(0,0);
     }));
+    var cnt2=setCounts(sel);
+    var backRow=el("div","cardfoot");
+    backRow.appendChild(quiet(cnt2.done<cnt2.total
+        ? "Not done — "+(cnt2.total-cnt2.done)+" sets still owed"
+        : "Back to the session",
+      function(){ local.capturing=0; local.ended=0; saveRun(); render(); window.scrollTo(0,0); }));
+    c.appendChild(backRow);
     return c;
   }
 
