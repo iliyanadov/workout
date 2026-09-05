@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 18;
+  var BUILD = 19;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -86,13 +86,17 @@
 
   if(!CFG.blockStart) CFG.blockStart = "2026-09-07";
   if(parse(CFG.blockStart).getDay() !== 1) CFG.blockStart = mondayOf(CFG.blockStart);
-  var BLOCK = CFG.blockStart, BLOCK_MON = mondayOf(BLOCK);
+  /* Two jobs that were one constant. ORIGIN numbers the weeks and may move when a
+     new block starts. HORIZON is the earliest date the app will ever read and is
+     hardcoded, so editing config.js can never hide months of training. */
+  var ORIGIN  = mondayOf(CFG.blockStart);
+  var HORIZON = "2026-09-07";
 
-  function weekNo(m){ return Math.round((parse(m)-parse(BLOCK_MON))/604800000)+1; }
-  function inBlock(d){ return d >= BLOCK; }
+  function weekNo(m){ return Math.round((parse(m)-parse(ORIGIN))/604800000)+1; }
+  function inBlock(d){ return d >= HORIZON; }
 
   var today = todayISO();
-  function effToday(){ return today < BLOCK ? BLOCK : today; }
+  function effToday(){ return today < HORIZON ? HORIZON : today; }
   function daysAway(d){ return Math.round((parse(d)-parse(today))/86400000); }
   function whenLabel(d){
     var n=daysAway(d);
@@ -222,7 +226,7 @@
 
   function pull(){
     if(!sb || !user || !navigator.onLine) return Promise.resolve();
-    return sb.from("days").select("day,payload,updated_at").gte("day", BLOCK).then(function(res){
+    return sb.from("days").select("day,payload,updated_at").gte("day", HORIZON).then(function(res){
       if(res.error || !res.data) return;
       var changed=false;
       res.data.forEach(function(row){
@@ -252,7 +256,7 @@
   /* ---------------- progression ---------------- */
   /* Most recent day strictly before `d` on which this exercise has logged reps. */
   function lastDone(d,id){
-    var ks = Object.keys(state.days).filter(function(k){ return k<d && k>=BLOCK; }).sort().reverse();
+    var ks = Object.keys(state.days).filter(function(k){ return k<d && k>=HORIZON; }).sort().reverse();
     for(var i=0;i<ks.length;i++){
       var e = state.days[ks[i]].ex && state.days[ks[i]].ex[id];
       if(!e) continue;
@@ -282,12 +286,18 @@
 
   /* Most recent RECORDED load, so one weightless session cannot lose the weight. */
   function lastLoad(d,id,fallback){
-    var ks=Object.keys(state.days).filter(function(k){ return k<d && k>=BLOCK; }).sort().reverse();
+    var ks=Object.keys(state.days).filter(function(k){ return k<d && k>=HORIZON; }).sort().reverse();
     for(var i=0;i<ks.length;i++){
       var e=state.days[ks[i]].ex && state.days[ks[i]].ex[id];
       if(e && e.w!=null) return e.w;
     }
     return fallback;
+  }
+
+  /* Days since this exercise was last actually done. */
+  function gapSince(d,id,prev){
+    prev = prev || lastDone(d,id);
+    return prev ? Math.round((parse(d)-parse(prev.d))/86400000) : null;
   }
 
   /* What the card should show as today's load, and why. Pure — writes nothing. */
@@ -297,6 +307,13 @@
     var prev = lastDone(d,ex.id);
     if(!prev) return { w:ex.w, from:null };
     var base = prev.e.w!=null ? prev.e.w : lastLoad(d,ex.id,ex.w);
+    /* Coming back from a layoff, the last session no longer describes this body.
+       Ease the load rather than bumping it off three-week-old evidence. */
+    var since = gapSince(d, ex.id, prev);
+    if(ex.big && !ex.bw && base!=null && since>=16){
+      var eased = Math.max(ex.step, Math.round(Math.floor(base*0.9/ex.step)*ex.step*10)/10);
+      if(eased<base) return { w:eased, from:base, on:prev.d, ease:since };
+    }
     var earned = earnsBump(ex, prev.e);
     if(earned && base!=null) return { w:Math.round((base+ex.step)*10)/10, from:base, on:prev.d };
     return { w:base, from:null };
@@ -583,8 +600,11 @@
     if(!isTargetSet(ex,i)) return null;
     var prev=lastDone(d,ex.id);
     if(i===0){
-      if(prev && prev.e.nt!=null) return clamp(prev.e.nt, ex.lo, ex.hi+4);
       if(!prev) return ex.hi-1;
+      /* A correction made three weeks ago is a note on a session that no longer exists. */
+      var gap = gapSince(d, ex.id, prev);
+      if(gap!=null && gap>=16) return ex.hi-2;
+      if(prev.e.nt!=null) return clamp(prev.e.nt, ex.lo, ex.hi+4);
       var q0=(prev.e.q||[])[0];
       var est=estFailure(prev.got[0], q0);
       var t=est-2;
@@ -608,7 +628,7 @@
     var w=planned(d,ex).w; if(w==null) return null;
     function rnd(p){ var v=Math.round(w*p/ex.step)*ex.step; return Math.round(v*10)/10; }
     return { ex:ex, rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
-                           {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w };
+                           {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w, approx:1 };
   }
 
   function minsLeft(d){
@@ -649,12 +669,16 @@
     var n=Math.max(ex.lo, got[0]-2);
     if(failedEarly) return { c:1, n:n,
       line:"You marked a set as everything you had, on a set that should have stopped two short. That is cause one, not the weight. Same load next time." };
-    var short=false, need=restFor(ex)*0.75;
-    for(var j=0;j<t.length;j++) if(t[j]!=null && t[j]<need) short=true;
-    if(short) return { c:2, n:n,
+    var short=false, worst=null, anyRest=false, need=restFor(ex)*0.75;
+    for(var j=0;j<got.length-1;j++){
+      var tv=t[j];
+      if(tv==null) continue;
+      anyRest=true;
+      if(tv<need){ short=true; if(worst==null||tv<worst) worst=tv; }
+    }
+    if(short) return { c:2, n:n, secs:worst, any:anyRest,
       line:"You cut the rest between sets. That is cause two. Take the full "+(restFor(ex)/60===3?"three minutes":"ninety seconds")+" before you blame the weight." };
-    return { c:3, n:n,
-      line:"Effort held, rest timed, and still that much drop-off. Noted — one exercise is noise. If it repeats next time the weight comes down. Not before." };
+    return { c:3, n:n };
   }
 
 
@@ -846,7 +870,7 @@
     document.getElementById("sesstitle").textContent =
       !inBlock(sel) ? "Before the block" : (sess ? sess.name : "Rest day");
     document.getElementById("sessdate").textContent =
-      (!inBlock(sel) ? "Starts "+shortD(BLOCK) : "Week "+wn) + " · " + pretty(sel);
+      (!inBlock(sel) ? "Starts "+shortD(ORIGIN) : "Week "+wn) + " · " + pretty(sel);
 
     /* header context */
     var done=0, total=0;
@@ -862,7 +886,7 @@
     var list=document.getElementById("exlist"); list.innerHTML="";
 
     if(!inBlock(sel)){
-      list.appendChild(el("div","empty","The block starts "+pretty(BLOCK)+". Nothing to log before then."));
+      list.appendChild(el("div","empty","The block starts "+pretty(ORIGIN)+". Nothing to log before then."));
       document.getElementById("dayhint").textContent="";
       return;
     }
@@ -1158,7 +1182,7 @@
       if(prev && (prev.e.q||[])[0]===0)
         warn="Last time set 1 of "+firstBig.n.toLowerCase()+" went to failure. Today's one job is not doing that.";
     }
-    if(!warn && wn<=3) warn="Weeks one to three are calibration. The weights are deliberately light. Do not fix that.";
+    if(!warn && sel < addDays(HORIZON,21)) warn="Weeks one to three are calibration. The weights are deliberately light. Do not fix that.";
     if(warn) c.appendChild(el("div","warnline",warn));
 
     c.appendChild(el("div","rule","Every set but the last stops with two reps still in you. The last set goes to failure. The app tells you the number."));
@@ -1203,7 +1227,7 @@
     c.appendChild(el("div","warnline","Without this, set 1 is the warm-up — and set 1 is the set you keep taking to failure."));
     var ticks=local.warmTicks||[];
     var rows=[{t:"2 minutes. Bike, walk, stairs.",w:null}]
-      .concat(ramp.rows.map(function(r){ return {t:ramp.ex.n+" · "+r.w+" kg × "+r.reps, w:r.why}; }));
+      .concat(ramp.rows.map(function(r){ return {t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps, w:r.why}; }));
     rows.forEach(function(row,i){
       var r=el("div","warmrow"+(ticks[i]?" on":""));
       var left=el("div","warmtxt");
@@ -1234,6 +1258,42 @@
     /* weight row */
     var wr=el("div","wrow2");
     if(ex.bw){ wr.appendChild(el("div","wbig","Bodyweight")); }
+    else if(pl.w==null){
+      /* Nothing to step from. A 6'4" leg extension is twenty taps away from 10kg,
+         and the pin stack in front of him is showing the real number. Type it. */
+      var box2=el("div","wbox");
+      var wi2=document.createElement("input");
+      wi2.className="winput"; wi2.type="number"; wi2.inputMode="decimal"; wi2.step="any";
+      wi2.placeholder="—"; wi2.setAttribute("aria-label",ex.n+" weight in kg");
+      wi2.addEventListener("input",function(){
+        var n=parseFloat(wi2.value), r=entry(sel,ex.id);
+        if(wi2.value===""){ r.w=null; }
+        else if(!isNaN(n)&&n>=0){ r.w=Math.round(n*10)/10; }
+        touch();
+        var lb=document.getElementById("logbtn");
+        if(lb){
+          lb.disabled=(r.w==null);
+          lb.className="runbtn"+(r.w==null?"":" go");
+          lb.textContent=r.w==null?"Set a weight first":"Done — log set "+(i+1);
+        }
+        var hv=document.getElementById("cardhero"), hs=document.getElementById("cardherosub");
+        if(hv && hs){
+          var tgt=stopTarget(sel,ex,i);
+          if(r.w==null){
+            hv.textContent="FIND A WEIGHT"; hv.className="hero fail";
+            hs.textContent="Type what the pin is on. You only do this once — after today it carries forward.";
+          } else if(tgt!=null){
+            hv.textContent="STOP AT "+tgt; hv.className="hero";
+            hs.textContent=subFor(ex,i,peekEx(sel,ex.id)||{},tgt,planned(sel,ex));
+          } else {
+            hv.textContent="TO FAILURE"; hv.className="hero fail";
+            hs.textContent="Every set on this one. Cheap fatigue, no reason to hold back. "+ex.lo+"–"+ex.hi+" is where it should land.";
+          }
+        }
+      });
+      box2.appendChild(wi2); box2.appendChild(el("span","wunit","kg"));
+      wr.appendChild(box2);
+    }
     else{
       var minus=el("button","wbtn","−"); minus.type="button"; minus.setAttribute("aria-label","Less weight");
       var val=el("div","wbig",(pl.w==null?"—":pl.w)+" kg");
@@ -1272,10 +1332,10 @@
 
     var needsWeight = (pl.w==null && !ex.bw);
     if(needsWeight){
-      c.appendChild(el("div","hero fail","FIND A WEIGHT"));
-      c.appendChild(el("div","herosub",
-        "No weight set for this one yet. Use + until it looks like something you could do about "+
-        ex.hi+" times. You only do this once — after today it carries forward."));
+      var h0=el("div","hero fail","FIND A WEIGHT"); h0.id="cardhero"; c.appendChild(h0);
+      var h1=el("div","herosub",
+        "Type what the pin is on. You only do this once — after today it carries forward.");
+      h1.id="cardherosub"; c.appendChild(h1);
     } else if(target!=null){
       c.appendChild(el("div","hero","STOP AT "+target));
       c.appendChild(el("div","herosub", subFor(ex,i,rec,target,pl)));
@@ -1293,11 +1353,13 @@
 
     /* rest panel, or the log button */
     if(restShown() && local.restExId===ex.id) c.appendChild(restPanel(ex,i));
-    else if(needsWeight){
-      var nb=bigBtn("Set a weight first","",function(){});
-      nb.disabled=true; c.appendChild(nb);
+    else {
+      var lb=bigBtn(needsWeight?"Set a weight first":"Done — log set "+(i+1),
+                    needsWeight?"":"go",
+                    function(){ if(!needsWeight || (peekEx(sel,ex.id)||{}).w!=null) openLog(ex,i); });
+      lb.id="logbtn"; lb.disabled=needsWeight;
+      c.appendChild(lb);
     }
-    else c.appendChild(bigBtn("Done — log set "+(i+1),"go",function(){ openLog(ex,i); }));
 
     var row=el("div","cardfoot");
     if(!reps(peekEx(sel,ex.id)).length) row.appendChild(quiet("Machine taken",function(){
@@ -1361,6 +1423,8 @@
     return null;
   }
 
+  function mmss(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
   function dropCard(ex){
     var dc=dropCause(sel,ex); if(!dc){ local.dropFor=null; saveRun(); return el("div",""); }
     var got=reps(peekEx(sel,ex.id));
@@ -1369,12 +1433,24 @@
     c.appendChild(el("h2","cardname",ex.n));
     if(got[0]-got[got.length-1]>3)
       c.appendChild(el("div","warnline","That is one working set and the rest that do not count."));
-    c.appendChild(el("div","dropline",dc.line));
-    c.appendChild(bigBtn("Next time I stop at "+dc.n,"amber",function(){
-      var r=entry(sel,ex.id); r.nt=dc.n; touch();
-      local.dropFor=null; saveRun();
-      render();
-    }));
+    /* Only cause 1 is fixed by a lower target. Offering that button on causes 2
+       and 3 turned a rest error into a permanently easier set 1. */
+    var dismiss=function(){ local.dropFor=null; saveRun(); render(); };
+    if(dc.c===1){
+      c.appendChild(el("div","dropline",dc.line));
+      c.appendChild(bigBtn("Next time I stop at "+dc.n,"amber",function(){
+        var r=entry(sel,ex.id); r.nt=dc.n; touch(); dismiss();
+      }));
+    } else if(dc.c===2){
+      c.appendChild(el("div","dropline", dc.secs!=null
+        ? "You rested "+mmss(dc.secs)+" between sets. That is cause two, and it is not the weight."
+        : "I never saw a full rest between those sets. Cause two comes before cause three — the weight is the last thing to blame."));
+      c.appendChild(bigBtn("Understood — the full rest next time","",dismiss));
+    } else {
+      c.appendChild(el("div","dropline",
+        "Effort held, rest timed, and it still fell off. One exercise is noise. Run it again exactly like this."));
+      c.appendChild(bigBtn("Understood — same weight next time","",dismiss));
+    }
     return c;
   }
 
@@ -1643,6 +1719,28 @@
         " g over "+st.prots.length+" day"+(st.prots.length>1?"s":"")+" (target "+RULES.nutrition.targets.protLo+"–"+RULES.nutrition.targets.protHi+")." : "")));
     box.appendChild(s2);
 
+    var roll=monthRollup();
+    if(roll.length>=2){
+      var mc=el("div","stat");
+      mc.appendChild(el("div","statlab","Month by month"));
+      roll.forEach(function(m){
+        var r=el("div","sessline");
+        r.appendChild(el("span","sesslab",m.label));
+        r.appendChild(el("span","reps",m.held+" / "+m.total));
+        r.appendChild(el("span","exlab",m.pct+"%"));
+        mc.appendChild(r);
+      });
+      var first=roll[0], last=roll[roll.length-1];
+      var note=first.label+" "+first.pct+"% → "+last.label+" "+last.pct+
+        "%. Are your sets reading 10/9/8 instead of 10/5/4 — that is the number the plan is about.";
+      var bwF=roll.filter(function(m){ return m.bw!=null; });
+      if(bwF.length>=2)
+        note += " Bodyweight "+bwF[0].bw.toFixed(1)+" kg in "+bwF[0].label+
+                ", "+bwF[bwF.length-1].bw.toFixed(1)+" in "+bwF[bwF.length-1].label+".";
+      mc.appendChild(el("div","statnote",note));
+      box.appendChild(mc);
+    }
+
     box.appendChild(el("h2","sec","Goes up next time"));
     if(st.ups.length){
       var u=el("div","stat");
@@ -1790,6 +1888,34 @@
     setTimeout(function(){ btn.textContent="Restore from a file"; render(); },3500);
   }
 
+  /* Calibration by month, using counts() and calibOK() verbatim — the same
+     definitions the card above prints, so the two can never disagree. */
+  function monthRollup(){
+    var byId={};
+    ORDER.forEach(function(k){ PLAN[k].ex.forEach(function(e){ byId[e.id]=e; }); });
+    var months={};
+    Object.keys(state.days).forEach(function(d){
+      if(d<HORIZON) return;
+      var r=state.days[d]; if(!r) return;
+      var key=d.slice(0,7);
+      var m=months[key] || (months[key]={held:0,total:0,bw:[]});
+      if(r.bw!=null && r.bw!=="" && !isNaN(+r.bw)) m.bw.push(+r.bw);
+      if(!r.ex) return;
+      Object.keys(r.ex).forEach(function(id){
+        var ex=byId[id]; if(!ex) return;
+        var rec=r.ex[id];
+        if(counts(ex,rec)){ m.total++; if(calibOK(ex,rec)) m.held++; }
+      });
+    });
+    return Object.keys(months).sort().filter(function(k){ return months[k].total>=8; })
+      .map(function(k){
+        var m=months[k], p=parse(k+"-01");
+        return { label:MON[p.getMonth()], held:m.held, total:m.total,
+                 pct:Math.round(m.held/m.total*100),
+                 bw:m.bw.length ? m.bw.reduce(function(a,b){return a+b;},0)/m.bw.length : null };
+      });
+  }
+
   function weekText(m,st){
     var wn=weekNo(m);
     var out=[(wn<1?"Before the block":"Week "+wn)+" · "+pretty(m)+" – "+pretty(addDays(m,6)),""];
@@ -1827,7 +1953,7 @@
     var intro=el("div","stat");
     intro.appendChild(el("div","statlab","The block"));
     intro.appendChild(el("div","statnote",
-      "Four days a week, upper/lower, two leg days because legs are the priority. Monday Lower A, Tuesday Upper A, Thursday Lower B, Friday Upper B. Starts "+pretty(BLOCK)+"."));
+      "Four days a week, upper/lower, two leg days because legs are the priority. Monday Lower A, Tuesday Upper A, Thursday Lower B, Friday Upper B. Starts "+pretty(ORIGIN)+"."));
     box.appendChild(intro);
 
     ORDER.forEach(function(k){
@@ -1890,7 +2016,7 @@
 
   function go(n){
     var t=addDays(sel,n);
-    if(t<BLOCK) t=BLOCK;
+    if(t<HORIZON) t=HORIZON;
     if(mondayOf(t)>mondayOf(effToday())) return;
     sel=t; stopRest(); closePad(); render();
   }
@@ -1908,7 +2034,7 @@
     var t=document.getElementById("wtoday");
     t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===effToday()?" · today":"");
     t.disabled = (sel===effToday());
-    document.getElementById("wprev").disabled = (mondayOf(addDays(sel,-7)) < mondayOf(BLOCK));
+    document.getElementById("wprev").disabled = (mondayOf(addDays(sel,-7)) < mondayOf(HORIZON));
     document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > mondayOf(effToday()));
   }
 
