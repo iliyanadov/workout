@@ -85,6 +85,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
   margin-top:6px
 }
 .gbtn:active{opacity:.85}
+.gskip{width:100%;height:46px;border:0;background:transparent;color:var(--muted);
+  font:500 14px/1 "IBM Plex Sans",sans-serif;cursor:pointer;margin-top:10px;text-decoration:underline;font-family:inherit}
 .gerr{color:var(--bad);font-size:13px;min-height:20px;margin-top:12px;line-height:1.4}
 
 /* ---------- header ---------- */
@@ -261,12 +263,13 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 </head>
 <body>
 
-<div id="gate">
+<div id="gate" class="hide">
   <h1 class="gtitle">Two In<br><span>Reserve</span></h1>
   <p class="gsub">Sign in once. It stays signed in, and works with no signal after that.</p>
   <input id="gmail" type="email" inputmode="email" autocomplete="username" placeholder="Email" autocapitalize="off" autocorrect="off">
   <input id="gpass" type="password" autocomplete="current-password" placeholder="Password">
   <button class="gbtn" id="gsubmit">Sign in</button>
+  <button class="gskip" id="gskip">Log without signing in</button>
   <div class="gerr" id="gerr"></div>
 </div>
 
@@ -757,11 +760,24 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
   loadLocal();
   render();
 
+  function haveLocalData(){ return Object.keys(state.days).length > 0; }
+
+  document.getElementById("gskip").addEventListener("click",function(){
+    showApp();
+    setSync("off","Logging on this phone only — sign in later to sync");
+  });
+
   try{
     sb=window.supabase.createClient(CFG.url,CFG.anonKey,{auth:{persistSession:true,autoRefreshToken:true}});
     sb.auth.getSession().then(function(r){
       var s=r.data&&r.data.session;
       if(s&&s.user){user=s.user;showApp();setSync("ok","Synced");pull();}
+      else if(!navigator.onLine||haveLocalData()){
+        showApp();
+        setSync("off", navigator.onLine
+          ? "Not signed in — tap Sync in the header to sign in"
+          : "Offline — logging on this phone, sign in later to sync");
+      }
       else{showGate("");setSync("off","Not signed in");}
     });
   }catch(e){
