@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 10;
+  var BUILD = 11;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -563,6 +563,79 @@
       line:"Effort held, rest timed, and still that much drop-off. Noted — one exercise is noise. If it repeats next time the weight comes down. Not before." };
   }
 
+
+  /* ---------- history + deleting a session ---------- */
+  function allSessions(){
+    return Object.keys(state.days).filter(function(d){
+      var r=state.days[d];
+      return r && r.ex && Object.keys(r.ex).some(function(k){ return reps(r.ex[k]).length; });
+    }).sort().reverse();
+  }
+
+  function sessionSummary(d){
+    var sess=sessionOf(d), r=peek(d);
+    if(!sess||!r) return null;
+    var sets=0, held=0, tot=0;
+    sess.ex.forEach(function(ex){
+      var e=r.ex&&r.ex[ex.id]; if(!e) return;
+      var got=reps(e); if(!got.length) return;
+      sets+=got.length;
+      if(ex.big&&got.length>=2){ tot++; if(got[0]-got[got.length-1]<=3) held++; }
+    });
+    return { name:sess.name, sets:sets, held:held, tot:tot };
+  }
+
+  var pendingDel=null, delTimer=null;
+  function deleteSession(d){
+    var r=state.days[d]; if(!r) return;
+    r.ex={}; r.k=null;
+    delete r.run; delete r.warm; delete r.ord; delete r.skip;
+    touch(d);
+    if(d===effToday()){
+      local.started=null; local.ended=0; local.capturing=0;
+      local.warmTicks=[]; local.warmSkipped=0; local.dropFor=null;
+      clearRest(false); saveRun();
+    }
+    pendingDel=null; render();
+  }
+
+  function deleteControl(d){
+    var wrap=el("div","endrow");
+    var armed=(pendingDel===d);
+    var sum=sessionSummary(d);
+    var b=el("button","quietbtn"+(armed?" danger":""),
+      armed ? "Tap again to delete "+(sum?sum.sets+" sets":"this session") : "Delete this session");
+    b.type="button";
+    b.addEventListener("click",function(){
+      if(pendingDel===d){ deleteSession(d); return; }
+      pendingDel=d; render();
+      if(delTimer) clearTimeout(delTimer);
+      delTimer=setTimeout(function(){ if(pendingDel===d){ pendingDel=null; render(); } },5000);
+    });
+    wrap.appendChild(b);
+    return wrap;
+  }
+
+  function renderHistory(box){
+    var all=allSessions();
+    box.appendChild(el("h2","sec","History"));
+    if(!all.length){ box.appendChild(el("div","empty","Nothing logged yet. Sessions appear here as you do them.")); return; }
+    var card=el("div","stat");
+    all.slice(0,40).forEach(function(d){
+      var s=sessionSummary(d); if(!s) return;
+      var row=el("button","sessline hist"); row.type="button";
+      row.appendChild(el("span","sesslab",shortD(d)));
+      row.appendChild(el("span","exlab",s.name+" · "+s.sets+" sets"));
+      if(s.tot) row.appendChild(el("span","ltag"+(s.held<s.tot?" bad":""),s.held+"/"+s.tot));
+      row.addEventListener("click",function(){
+        sel=d; listMode=(d!==effToday()); stopRest(); closePad(); setTab("day");
+      });
+      card.appendChild(row);
+    });
+    box.appendChild(card);
+    if(all.length>40) box.appendChild(el("div","empty","Showing the most recent 40 of "+all.length+" sessions."));
+  }
+
   /* ---------- rest clock (device-local, absolute timestamp) ---------- */
   function beginRest(ex,i,secs){
     local.restEndAt = Date.now()+secs*1000;
@@ -677,6 +750,7 @@
         list.appendChild(back2);
       }
       sess.ex.forEach(function(ex){ list.appendChild(exCard(ex)); });
+      if(sessionSummary(sel)) list.appendChild(deleteControl(sel));
       document.getElementById("dayhint").innerHTML =
         "Tap a set to log it. Anything that turned into a grind when it should have stopped two short, mark it on the pad — that is the difference between the app telling you to hold the weight and telling you to drop it.";
     } else {
@@ -1255,6 +1329,7 @@
     row.appendChild(quiet("See the week",function(){ setTab("week"); }));
     row.appendChild(quiet("Change something",function(){ listMode=true; render(); }));
     c.appendChild(row);
+    c.appendChild(deleteControl(sel));
     return c;
   }
 
@@ -1414,6 +1489,8 @@
       sv.appendChild(r);
     });
     box.appendChild(sv);
+
+    renderHistory(box);
 
     var cb=el("button","copybtn","Copy week for review");
     cb.addEventListener("click",function(){
