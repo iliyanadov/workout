@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 23;
+  var BUILD = 24;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -860,7 +860,7 @@
     var r=peek(d); if(!r) return "";
     var hasReps = r.ex && Object.keys(r.ex).some(function(k){ return reps(r.ex[k]).length; });
     if(hasReps) return "has";
-    if((r.bw!=null&&r.bw!=="")||(r.p!=null&&r.p!=="")||(r.note||"").trim()) return "part";
+    if((r.note||"").trim()) return "part";
     return "";
   }
 
@@ -960,8 +960,6 @@
     }
 
     var dd=peek(sel)||{};
-    document.getElementById("bw").value   = dd.bw==null?"":dd.bw;
-    document.getElementById("prot").value = dd.p==null?"":dd.p;
     document.getElementById("note").value = dd.note||"";
   }
 
@@ -1574,16 +1572,12 @@
 
     c.appendChild(el("h2","sec","One thing for next time"));
     c.appendChild(el("div","onething",oneThing(order)));
-    var qn=0, rr=peek(sel)||{}, wkq=weekStats(mondayOf(sel));
-    if(rr.bw==null && wkq.bws.length<3 && !local.noBw) qn++;
-    if(rr.p==null && !local.noP) qn++;
-    qn++;
     var nag=backupNag();
     if(nag){
       var nb=el("div","cue",nag+" Back it up from the Week tab.");
       c.appendChild(nb);
     }
-    c.appendChild(bigBtn(qn===1?"Nearly done — one question":qn===2?"Nearly done — two questions":"Nearly done — three questions","go",function(){
+    c.appendChild(bigBtn("Nearly done — one question","go",function(){
       local.capturing=1; saveRun(); render(); window.scrollTo(0,0);
     }));
     return c;
@@ -1607,31 +1601,6 @@
     var c=el("div","card captures");
     c.appendChild(el("div","kicker","Before you go"));
     var rec=peek(sel)||{};
-
-    var wk=weekStats(mondayOf(sel));
-    if(rec.bw==null && wk.bws.length<3 && !local.noBw){
-      c.appendChild(el("div","qlab","Bodyweight this morning"));
-      var lastBw=null, ks=Object.keys(state.days).filter(function(x){return x<sel;}).sort().reverse();
-      for(var i=0;i<ks.length;i++){ var b=state.days[ks[i]].bw; if(b!=null&&b!==""){ lastBw=+b; break; } }
-      var base=lastBw!=null?lastBw:80;
-      var row=el("div","chips");
-      [base-0.2,base,base+0.2].forEach(function(v){
-        var n=Math.round(v*10)/10;
-        row.appendChild(bigBtn(String(n),"chip2",function(){ day(sel).bw=n; touch(); render(); }));
-      });
-      row.appendChild(quiet("Didn't weigh",function(){ day(sel).bw=null; local.noBw=1; saveRun(); render(); }));
-      c.appendChild(row);
-    }
-
-    if(rec.p==null && !local.noP){
-      c.appendChild(el("div","qlab","Protein today, best guess"));
-      var pr=el("div","chips");
-      [120,140,160].forEach(function(v){
-        pr.appendChild(bigBtn(String(v),"chip2",function(){ day(sel).p=v; touch(); render(); }));
-      });
-      pr.appendChild(quiet("Didn't track",function(){ local.noP=1; saveRun(); render(); }));
-      c.appendChild(pr);
-    }
 
     c.appendChild(el("div","qlab","Anything worth saying?"));
     var tags=el("div","chips");
@@ -1755,11 +1724,9 @@
 
   /* ---------------- week view ---------------- */
   function weekStats(m){
-    var held=0,total=0,ups=[],watch=[],bws=[],prots=[],done=0,lines=[];
+    var held=0,total=0,ups=[],watch=[],done=0,lines=[];
     for(var i=0;i<7;i++){
       var ds=addDays(m,i), rec=peek(ds); if(!rec) continue;
-      if(rec.bw!=null&&rec.bw!=="") bws.push(+rec.bw);
-      if(rec.p!=null&&rec.p!=="")   prots.push(+rec.p);
       var sess=sessionOf(ds); if(!sess) continue;
       var any=false;
       sess.ex.forEach(function(ex){
@@ -1776,7 +1743,7 @@
       });
       if(any) done++;
     }
-    return {held:held,total:total,ups:ups,watch:watch,bws:bws,prots:prots,done:done,lines:lines};
+    return {held:held,total:total,ups:ups,watch:watch,done:done,lines:lines};
   }
 
   function renderWeek(){
@@ -1794,16 +1761,12 @@
       : "Log two or more sets of a big lift and this fills in. Only hack squat, leg press, chest press, pulldown, row, dips and incline press count."));
     box.appendChild(s1);
 
-    var avg = st.bws.length ? st.bws.reduce(function(a,b){return a+b;},0)/st.bws.length : null;
     var s2=el("div","stat");
     s2.appendChild(el("div","statlab",(wn<1?"Before the block":"Week "+wn)+" · "+pretty(m)+" – "+pretty(addDays(m,6))));
     s2.appendChild(el("div","bignum")).innerHTML = st.done+'<small> / 4 sessions</small>';
-    s2.appendChild(el("div","statnote",
-      (avg!=null ? "Bodyweight "+avg.toFixed(2)+" kg over "+st.bws.length+" reading"+(st.bws.length>1?"s":"")+
-        (st.bws.length<2?" — too thin to read a trend yet." : ". Weekly average only, never a single day.")
-       : "No weigh-ins yet this week.") +
-      (st.prots.length ? " Protein "+Math.round(st.prots.reduce(function(a,b){return a+b;},0)/st.prots.length)+
-        " g over "+st.prots.length+" day"+(st.prots.length>1?"s":"")+" (target "+RULES.nutrition.targets.protLo+"–"+RULES.nutrition.targets.protHi+")." : "")));
+    s2.appendChild(el("div","statnote", st.done>=4
+      ? "All four sessions in. That is the week."
+      : (4-st.done)+" session"+(4-st.done>1?"s":"")+" left this week."));
     box.appendChild(s2);
 
     var roll=monthRollup();
@@ -1820,10 +1783,6 @@
       var first=roll[0], last=roll[roll.length-1];
       var note=first.label+" "+first.pct+"% → "+last.label+" "+last.pct+
         "%. Are your sets reading 10/9/8 instead of 10/5/4 — that is the number the plan is about.";
-      var bwF=roll.filter(function(m){ return m.bw!=null; });
-      if(bwF.length>=2)
-        note += " Bodyweight "+bwF[0].bw.toFixed(1)+" kg in "+bwF[0].label+
-                ", "+bwF[bwF.length-1].bw.toFixed(1)+" in "+bwF[bwF.length-1].label+".";
       mc.appendChild(el("div","statnote",note));
       box.appendChild(mc);
     }
@@ -2015,8 +1974,7 @@
       if(d<HORIZON) return;
       var r=state.days[d]; if(!r) return;
       var key=d.slice(0,7);
-      var m=months[key] || (months[key]={held:0,total:0,bw:[]});
-      if(r.bw!=null && r.bw!=="" && !isNaN(+r.bw)) m.bw.push(+r.bw);
+      var m=months[key] || (months[key]={held:0,total:0});
       if(!r.ex) return;
       Object.keys(r.ex).forEach(function(id){
         var ex=byId[id]; if(!ex) return;
@@ -2028,8 +1986,7 @@
       .map(function(k){
         var m=months[k], p=parse(k+"-01");
         return { label:MON[p.getMonth()], held:m.held, total:m.total,
-                 pct:Math.round(m.held/m.total*100),
-                 bw:m.bw.length ? m.bw.reduce(function(a,b){return a+b;},0)/m.bw.length : null };
+                 pct:Math.round(m.held/m.total*100) };
       });
   }
 
@@ -2040,8 +1997,6 @@
       var ds=addDays(m,i), rec=peek(ds); if(!rec) continue;
       var sess=sessionOf(ds);
       var extra=[];
-      if(rec.bw!=null&&rec.bw!=="") extra.push("bw "+rec.bw);
-      if(rec.p!=null&&rec.p!=="")   extra.push("p "+rec.p);
       var body=[];
       if(sess) sess.ex.forEach(function(ex){
         var e=rec.ex&&rec.ex[ex.id]; if(!e) return;
@@ -2187,14 +2142,6 @@
   window.addEventListener("online",function(){ checkRollover(); push(); pull(); });
   window.addEventListener("offline",function(){ setSync("off","Offline — saving on this device"); });
 
-  document.getElementById("bw").addEventListener("input",function(){
-    var v=this.value===""?null:parseFloat(this.value);
-    day(sel).bw = (v==null||isNaN(v))?null:v; touch(); renderStrip();
-  });
-  document.getElementById("prot").addEventListener("input",function(){
-    var v=this.value===""?null:parseInt(this.value,10);
-    day(sel).p = (v==null||isNaN(v))?null:v; touch();
-  });
   document.getElementById("note").addEventListener("input",function(){
     day(sel).note=this.value; touch();
   });
