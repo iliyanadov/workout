@@ -265,10 +265,9 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 
 <div id="gate" class="hide">
   <h1 class="gtitle">Two In<br><span>Reserve</span></h1>
-  <p class="gsub">Sign in once. It stays signed in, and works with no signal after that.</p>
-  <input id="gmail" type="email" inputmode="email" autocomplete="username" placeholder="Email" autocapitalize="off" autocorrect="off">
-  <input id="gpass" type="password" autocomplete="current-password" placeholder="Password">
-  <button class="gbtn" id="gsubmit">Sign in</button>
+  <p class="gsub">Your email, once. That is the whole sign-in — after this it opens straight into your log, on this device, forever.</p>
+  <input id="gmail" type="email" inputmode="email" autocomplete="username" enterkeyhint="go" placeholder="Email" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button class="gbtn" id="gsubmit">Continue</button>
   <button class="gskip" id="gskip">Log without signing in</button>
   <div class="gerr" id="gerr"></div>
 </div>
@@ -743,17 +742,52 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
     document.getElementById("gate").classList.remove("hide");
     if(msg)document.getElementById("gerr").textContent=msg;
   }
+  var EMAIL_KEY="workout.email";
+  function rememberedEmail(){try{return localStorage.getItem(EMAIL_KEY)||"";}catch(e){return "";}}
+
+  function derive(email){
+    var data=new TextEncoder().encode(email+CFG.salt);
+    return crypto.subtle.digest("SHA-256",data).then(function(buf){
+      var out="",v=new Uint8Array(buf);
+      for(var i=0;i<v.length;i++)out+=v[i].toString(16).padStart(2,"0");
+      return out;
+    });
+  }
+
+  function signIn(email){
+    email=String(email||"").trim().toLowerCase();
+    return derive(email).then(function(key){
+      return sb.auth.signInWithPassword({email:email,password:key});
+    });
+  }
+
+  function onSignedIn(u,email){
+    user=u;
+    try{localStorage.setItem(EMAIL_KEY,email);}catch(e){}
+    showApp();setSync("ok","Synced");pull();
+  }
+
   document.getElementById("gsubmit").addEventListener("click",function(){
-    var btn=this,em=document.getElementById("gmail").value.trim(),pw=document.getElementById("gpass").value;
-    if(!em||!pw){document.getElementById("gerr").textContent="Email and password, both.";return;}
-    btn.disabled=true;btn.textContent="Signing in…";
-    sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
-      btn.disabled=false;btn.textContent="Sign in";
-      if(r.error){document.getElementById("gerr").textContent=r.error.message;return;}
-      user=r.data.user;showApp();setSync("ok","Synced");pull();
+    var btn=this,em=document.getElementById("gmail").value.trim().toLowerCase();
+    var err=document.getElementById("gerr");
+    if(!em||em.indexOf("@")<0){err.textContent="That does not look like an email address.";return;}
+    if(!navigator.onLine){err.textContent="No connection. Tap ‘Log without signing in’ — it syncs later.";return;}
+    btn.disabled=true;btn.textContent="One moment…";err.textContent="";
+    signIn(em).then(function(r){
+      btn.disabled=false;btn.textContent="Continue";
+      if(r.error){
+        err.textContent = /Invalid login/i.test(r.error.message)
+          ? "No log found for that address. Check the spelling."
+          : r.error.message;
+        return;
+      }
+      onSignedIn(r.data.user,em);
+    }).catch(function(){
+      btn.disabled=false;btn.textContent="Continue";
+      err.textContent="Could not reach the server. You can log without signing in.";
     });
   });
-  document.getElementById("gpass").addEventListener("keydown",function(e){
+  document.getElementById("gmail").addEventListener("keydown",function(e){
     if(e.key==="Enter")document.getElementById("gsubmit").click();
   });
 
@@ -772,10 +806,18 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
     sb.auth.getSession().then(function(r){
       var s=r.data&&r.data.session;
       if(s&&s.user){user=s.user;showApp();setSync("ok","Synced");pull();}
-      else if(!navigator.onLine||haveLocalData()){
+      else if(rememberedEmail()&&navigator.onLine){
+        // Session gone but we know who this is — sign back in without asking.
+        showApp();setSync("","Reconnecting…");
+        signIn(rememberedEmail()).then(function(r){
+          if(r.error){setSync("off","Logging on this phone — could not reconnect");return;}
+          onSignedIn(r.data.user,rememberedEmail());
+        }).catch(function(){setSync("off","Logging on this phone — offline");});
+      }
+      else if(rememberedEmail()||!navigator.onLine||haveLocalData()){
         showApp();
         setSync("off", navigator.onLine
-          ? "Not signed in — tap Sync in the header to sign in"
+          ? "Logging on this phone — not synced"
           : "Offline — logging on this phone, sign in later to sync");
       }
       else{showGate("");setSync("off","Not signed in");}

@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE on every deploy so clients pick up new code. */
-const CACHE = "workout-v2";
+const CACHE = "workout-v3";
 const SHELL = [
   "./",
   "./index.html",
