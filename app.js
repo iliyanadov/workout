@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 20;
+  var BUILD = 21;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -294,6 +294,20 @@
     return fallback;
   }
 
+  /* The real increment for a machine, learned the one time the user sets it.
+     Stored as `st` on that day's exercise record, so it rides the existing sync
+     with no schema change and reaches every device. */
+  function stepFor(d,id){
+    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=HORIZON; }).sort().reverse();
+    for(var i=0;i<ks.length;i++){
+      var e=state.days[ks[i]].ex && state.days[ks[i]].ex[id];
+      if(e && e.st!=null && e.st>0) return e.st;
+    }
+    return null;
+  }
+  /* The learned step if we have one, otherwise PLAN's guess. */
+  function stepOf(d,ex){ var st=stepFor(d,ex.id); return st!=null ? st : ex.step; }
+
   /* Days since this exercise was last actually done. */
   function gapSince(d,id,prev){
     prev = prev || lastDone(d,id);
@@ -309,13 +323,19 @@
     var base = prev.e.w!=null ? prev.e.w : lastLoad(d,ex.id,ex.w);
     /* Coming back from a layoff, the last session no longer describes this body.
        Ease the load rather than bumping it off three-week-old evidence. */
+    var stp = stepOf(d,ex);
     var since = gapSince(d, ex.id, prev);
     if(ex.big && !ex.bw && base!=null && since>=16){
-      var eased = Math.max(ex.step, Math.round(Math.floor(base*0.9/ex.step)*ex.step*10)/10);
+      var eased = Math.max(stp, Math.round(Math.floor(base*0.9/stp)*stp*10)/10);
       if(eased<base) return { w:eased, from:base, on:prev.d, ease:since };
     }
     var earned = earnsBump(ex, prev.e);
-    if(earned && base!=null) return { w:Math.round((base+ex.step)*10)/10, from:base, on:prev.d };
+    if(earned && base!=null){
+      if(stepFor(d,ex.id)!=null) return { w:Math.round((base+stp)*10)/10, from:base, on:prev.d };
+      /* We have never been shown this machine's ladder. Ask, rather than invent
+         a number like 100.1 that no pin stack can be set to. */
+      return { w:base, from:base, on:prev.d, needNotch:true };
+    }
     return { w:base, from:null };
   }
 
@@ -626,7 +646,8 @@
     var order=sessionOrder(d); if(!order.length) return null;
     var ex=order[0]; if(!ex.big||ex.w==null) return null;
     var w=planned(d,ex).w; if(w==null) return null;
-    function rnd(p){ var v=Math.round(w*p/ex.step)*ex.step; return Math.round(v*10)/10; }
+    var stp=stepOf(d,ex);
+    function rnd(p){ var v=Math.round(w*p/stp)*stp; return Math.round(v*10)/10; }
     return { ex:ex, rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
                            {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w, approx:1 };
   }
@@ -989,8 +1010,9 @@
       wi.value = n==null?"":n;
       touch(); renderDay();
     }
-    minus.addEventListener("click",function(){ if(pl.w!=null) setW(Math.max(0,pl.w-ex.step)); });
-    plus.addEventListener("click",function(){ setW((pl.w==null?10:pl.w)+(pl.w==null?0:ex.step)); });
+    var stepL=stepOf(sel,ex);
+    minus.addEventListener("click",function(){ if(pl.w!=null) setW(Math.max(0,pl.w-stepL)); });
+    plus.addEventListener("click",function(){ setW((pl.w==null?10:pl.w)+(pl.w==null?0:stepL)); });
     /* commit on input, not blur — iOS never fires change on a digits-only keypad */
     wi.addEventListener("input",function(){
       var n=parseFloat(wi.value);
@@ -1299,12 +1321,13 @@
       var val=el("div","wbig",(pl.w==null?"—":pl.w)+" kg");
       var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
       // From nothing, land on a usable plate rather than crawling up in 2.5s.
+      var stepG=stepOf(sel,ex);
       minus.addEventListener("click",function(){
         if(pl.w==null) return;
-        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((pl.w-ex.step)*10)/10); touch(); render(); });
+        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((pl.w-stepG)*10)/10); touch(); render(); });
       plus.addEventListener("click",function(){
         var r=entry(sel,ex.id);
-        r.w = pl.w==null ? 10 : Math.round((pl.w+ex.step)*10)/10;
+        r.w = pl.w==null ? 10 : Math.round((pl.w+stepG)*10)/10;
         touch(); render(); });
       wr.appendChild(minus); wr.appendChild(val); wr.appendChild(plus);
     }
@@ -1322,7 +1345,34 @@
     c.appendChild(sl);
 
     /* the instruction — the whole product */
-    if(pl.from!=null){
+    if(pl.needNotch){
+      var ask=el("div","bumped");
+      ask.appendChild(el("span","","Goes up today — you earned it "+shortD(pl.on)+
+        ". What is the next weight up from "+pl.from+" kg on this machine?"));
+      c.appendChild(ask);
+      var nrow=el("div","wrow");
+      nrow.appendChild(el("span","wlab","Next notch"));
+      var nbox=el("div","wbox");
+      var ni=document.createElement("input");
+      ni.className="winput"; ni.type="number"; ni.inputMode="decimal"; ni.step="any";
+      ni.placeholder=String(pl.from);
+      ni.setAttribute("aria-label","Next weight up on this machine, in kg");
+      ni.addEventListener("input",function(){
+        var v=parseFloat(ni.value);
+        if(isNaN(v) || v<=pl.from || v>pl.from*1.5) return;   // must be up, and plausibly so
+        var r=entry(sel,ex.id);
+        r.w=Math.round(v*10)/10;
+        r.st=Math.round((r.w-pl.from)*10)/10;                 // learned once, used forever
+        touch();
+      });
+      nbox.appendChild(ni); nbox.appendChild(el("span","wunit","kg"));
+      nrow.appendChild(nbox);
+      var keep=el("button","wbtn"); keep.style.width="auto"; keep.style.padding="0 12px";
+      keep.textContent="Same"; keep.setAttribute("aria-label","Keep the same weight");
+      keep.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
+      nrow.appendChild(keep);
+      c.appendChild(nrow);
+    } else if(pl.from!=null){
       var bump=el("div","bumped");
       bump.appendChild(el("span","","Earned it "+shortD(pl.on)+" · "+pl.from+" → "+pl.w+" kg"));
       var undo=el("button",null,"Keep "+pl.from);
@@ -1489,8 +1539,12 @@
     order.forEach(function(ex){
       var rec=peekEx(sel,ex.id); if(!rec) return;
       var got=reps(rec);
-      if(earnsBump(ex,rec))
-        ups.push(ex.n+"  "+(rec.w!=null?rec.w+" → "+Math.round((rec.w+ex.step)*10)/10+" kg":"next notch up"));
+      if(earnsBump(ex,rec)){
+        var stw=stepFor(sel,ex.id);
+        ups.push(ex.n+"  "+(rec.w!=null && stw!=null
+          ? rec.w+" → "+Math.round((rec.w+stw)*10)/10+" kg"
+          : "up one notch — the app will ask what that is"));
+      }
     });
     if(ups.length){
       c.appendChild(el("h2","sec","Goes up next time"));
@@ -1687,7 +1741,7 @@
         var drop=got[0]-got[got.length-1];
         if(counts(ex,e)){ total++; if(calibOK(ex,e)) held++; }
         if(earnsBump(ex,e))
-          ups.push({n:ex.n,from:e.w,step:ex.step,last:got[got.length-1]});
+          ups.push({n:ex.n,id:ex.id,from:e.w,step:ex.step,last:got[got.length-1]});
         if(counts(ex,e) && !calibOK(ex,e))
           watch.push({n:ex.n,reps:got,grind:!heldBack(e)});
         lines.push({d:ds,n:ex.n,w:e.w,reps:got,g:e.g||[]});
@@ -1752,7 +1806,9 @@
       st.ups.forEach(function(x){
         var r=el("div","sessline");
         r.appendChild(el("span","sesslab", x.from!=null? x.from+" kg":"—"));
-        r.appendChild(el("span","reps","→ "+(x.from!=null?(Math.round((x.from+x.step)*10)/10)+" kg":"next notch")));
+        var stU=stepFor(sel,x.id);
+        r.appendChild(el("span","reps","→ "+((x.from!=null && stU!=null)
+          ? (Math.round((x.from+stU)*10)/10)+" kg" : "the next notch up")));
         r.appendChild(el("span","exlab", x.n+" · last set "+x.last));
         u.appendChild(r);
       });
