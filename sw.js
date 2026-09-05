@@ -3,7 +3,7 @@
    the phone immediately and cannot be pinned by GitHub Pages' max-age=600.
    Static assets stay cache-first. Offline still works: every network-first
    fetch falls back to the cache. */
-const CACHE = "workout-v13";
+const CACHE = "workout-v14";
 const CORE  = "./index.html";
 const CODE  = ["/workout/", "/workout/index.html", "/workout/app.js", "/workout/config.js", "/workout/version.json"];
 const SHELL = [
@@ -57,17 +57,28 @@ self.addEventListener("fetch", (e) => {
   if (isCode(url, req)) {
     e.respondWith((async () => {
       const c = await caches.open(CACHE);
-      try {
+      // Read the fallback up front: a hung request is a failure too, and a
+      // gym with one bar must not sit on a spinner instead of opening.
+      let hit = await c.match(req);
+      if (!hit && req.mode === "navigate") hit = await c.match(CORE);
+
+      const net = (async () => {
         const res = await fetch(req, { cache: "no-store" });
-        if (res && res.ok) c.put(req, res.clone());
+        if (!res || !res.ok) throw new Error("status " + (res && res.status));
+        // version.json is probed with a cache-busting query; caching those
+        // would grow the cache without bound and nothing ever reads them.
+        if (!url.search) c.put(req, res.clone()).catch(() => {});
         return res;
-      } catch (err) {
-        const hit = await c.match(req);
-        if (hit) return hit;
-        const core = await c.match(CORE);
-        if (req.mode === "navigate" && core) return core;
-        return new Response("", { status: 504 });
-      }
+      })();
+      net.catch(() => {});
+      e.waitUntil(net.catch(() => {}));
+
+      if (!hit) { try { return await net; } catch (err) { return new Response("", { status: 504 }); } }
+      const timeout = new Promise(r => setTimeout(() => r(null), 2500));
+      try {
+        const res = await Promise.race([net, timeout]);
+        return res || hit;
+      } catch (err) { return hit; }
     })());
     return;
   }
