@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 24;
+  var BUILD = 25;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -285,6 +285,32 @@
   }
 
   /* Most recent RECORDED load, so one weightless session cannot lose the weight. */
+  /* The load a given set was done at, falling back to the exercise's headline
+     weight for records written before per-set loads existed. */
+  function setW(rec,i){
+    if(!rec) return null;
+    var wr=(rec.wr||[])[i];
+    return wr!=null ? wr : (rec.w!=null ? rec.w : null);
+  }
+  function lastSetW(rec){
+    if(!rec) return null;
+    var got=reps(rec);
+    if(!got.length) return rec.w!=null?rec.w:null;
+    var idx=-1, r=rec.r||[];
+    for(var i=0;i<r.length;i++) if(r[i]!=null && r[i]!=="") idx=i;
+    return setW(rec, idx);
+  }
+  /* Did this exercise happen at more than one load today? */
+  function mixedLoads(rec){
+    var seen={}, n=0, r=(rec&&rec.r)||[];
+    for(var i=0;i<r.length;i++){
+      if(r[i]==null||r[i]==="") continue;
+      var w=setW(rec,i); if(w==null) continue;
+      if(!seen[w]){ seen[w]=1; n++; }
+    }
+    return n>1;
+  }
+
   function lastLoad(d,id,fallback){
     var ks=Object.keys(state.days).filter(function(k){ return k<d && k>=HORIZON; }).sort().reverse();
     for(var i=0;i<ks.length;i++){
@@ -320,7 +346,7 @@
     if(own && own.w!=null) return { w:own.w, from:null };
     var prev = lastDone(d,ex.id);
     if(!prev) return { w:ex.w, from:null };
-    var base = prev.e.w!=null ? prev.e.w : lastLoad(d,ex.id,ex.w);
+    var base = lastSetW(prev.e); if(base==null) base = lastLoad(d,ex.id,ex.w);
     /* Coming back from a layoff, the last session no longer describes this body.
        Ease the load rather than bumping it off three-week-old evidence. */
     var stp = stepOf(d,ex);
@@ -535,6 +561,7 @@
     var rec=entry(sel,ex.id);
     if(rec.w==null) rec.w = planned(sel,ex).w;        /* commit the shown load on first log */
     rec.r=rec.r||[]; rec.r[i]=v;
+    rec.wr=rec.wr||[]; rec.wr[i]=rec.w;
     touch(); closePad(); renderDay(); startRest(ex);
   }
   document.getElementById("padclose").addEventListener("click",closePad);
@@ -843,6 +870,7 @@
     var rec=entry(d,ex.id);
     if(rec.w==null) rec.w=planned(d,ex).w;
     rec.r=rec.r||[]; rec.r[i]=v;
+    rec.wr=rec.wr||[]; rec.wr[i]=rec.w;      // the load this set was actually done at
     if(q!=null){ rec.q=rec.q||[]; rec.q[i]=q;
       rec.g=rec.g||[]; rec.g[i]=(q===0 && isTargetSet(ex,i)); }
     touch(d);
@@ -1417,7 +1445,10 @@
     }
 
     var prev=lastDone(sel,ex.id);
-    if(prev)
+    if(prev && mixedLoads(prev.e))
+      c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · mixed loads · "+
+        reps(prev.e).map(function(v,ix){ var lw=setW(prev.e,ix); return v+(lw!=null?"@"+lw:""); }).join(" / ")));
+    else if(prev)
       c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":"bodyweight")+" · "+prev.got.join(" / ")));
 
     /* rest panel, or the log button */
@@ -1676,7 +1707,8 @@
     l.type="button";
     l.appendChild(el("span","lmark",bad?"!":"✓"));
     l.appendChild(el("span","lname",ex.n));
-    l.appendChild(el("span","lw",rec.w!=null?rec.w+" kg":(ex.bw?"bodyweight":"")));
+    l.appendChild(el("span","lw", mixedLoads(rec) ? "mixed"
+                                  : (rec.w!=null?rec.w+" kg":(ex.bw?"bodyweight":""))));
     l.appendChild(el("span","lreps",got.join(" / ")));
     var tag = rec.fin && got.length<ex.s ? got.length+" of "+ex.s+" sets"
             : earnsBump(ex,rec) ? "goes up"
@@ -2002,7 +2034,16 @@
         var e=rec.ex&&rec.ex[ex.id]; if(!e) return;
         var got=((e.r)||[]).map(function(v,i2){ return (v==null||v==="")?null:v+((e.g||[])[i2]?"!":""); }).filter(Boolean);
         if(!got.length) return;
-        body.push("  "+ex.n+" "+(e.w!=null?e.w+"kg":(ex.bw?"BW":"weight not recorded"))+" — "+got.join(" "));
+        if(mixedLoads(e)){
+          var parts=(e.r||[]).map(function(v,ix){
+            if(v==null||v==="") return null;
+            var lw=setW(e,ix);
+            return v+((e.g||[])[ix]?"!":"")+(lw!=null?"@"+lw:"");
+          }).filter(Boolean);
+          body.push("  "+ex.n+" — "+parts.join(" "));
+        } else {
+          body.push("  "+ex.n+" "+(e.w!=null?e.w+"kg":(ex.bw?"BW":"weight not recorded"))+" — "+got.join(" "));
+        }
       });
       if(!body.length && !extra.length && !(rec.note||"").trim()) continue;
       out.push(pretty(ds)+(sess?" — "+sess.name:" — rest")+(extra.length?"  "+extra.join("  "):""));
