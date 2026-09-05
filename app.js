@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 11;
+  var BUILD = 12;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -790,7 +790,8 @@
 
     var prev=lastDone(sel,ex.id);
     if(prev) card.appendChild(el("div","lastline",
-      "Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":"bodyweight")+" · "+prev.got.join(" / ")));
+      "Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":(ex.bw?"bodyweight":"weight not recorded"))+
+      " · "+prev.got.join(" / ")));
 
     if(pl.from!=null){
       var bump=el("div","bumped");
@@ -820,14 +821,8 @@
       wi.value = n==null?"":n;
       touch(); renderDay();
     }
-    minus.addEventListener("click",function(){
-      var cur = parseFloat(wi.value); if(isNaN(cur)) cur = pl.w!=null?pl.w:0;
-      setW(Math.max(0, cur-ex.step));
-    });
-    plus.addEventListener("click",function(){
-      var cur = parseFloat(wi.value); if(isNaN(cur)) cur = pl.w!=null?pl.w:0;
-      setW(cur+ex.step);
-    });
+    minus.addEventListener("click",function(){ if(pl.w!=null) setW(Math.max(0,pl.w-ex.step)); });
+    plus.addEventListener("click",function(){ setW((pl.w==null?10:pl.w)+(pl.w==null?0:ex.step)); });
     /* commit on input, not blur — iOS never fires change on a digits-only keypad */
     wi.addEventListener("input",function(){
       var n=parseFloat(wi.value);
@@ -1077,10 +1072,14 @@
       var minus=el("button","wbtn","−"); minus.type="button"; minus.setAttribute("aria-label","Less weight");
       var val=el("div","wbig",(pl.w==null?"—":pl.w)+" kg");
       var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
-      minus.addEventListener("click",function(){ var r=entry(sel,ex.id);
-        r.w=Math.max(0,Math.round(((pl.w||0)-ex.step)*10)/10); touch(); render(); });
-      plus.addEventListener("click",function(){ var r=entry(sel,ex.id);
-        r.w=Math.round(((pl.w||0)+ex.step)*10)/10; touch(); render(); });
+      // From nothing, land on a usable plate rather than crawling up in 2.5s.
+      minus.addEventListener("click",function(){
+        if(pl.w==null) return;
+        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((pl.w-ex.step)*10)/10); touch(); render(); });
+      plus.addEventListener("click",function(){
+        var r=entry(sel,ex.id);
+        r.w = pl.w==null ? 10 : Math.round((pl.w+ex.step)*10)/10;
+        touch(); render(); });
       wr.appendChild(minus); wr.appendChild(val); wr.appendChild(plus);
     }
     wr.appendChild(el("div","setof","set "+(i+1)+" of "+ex.s));
@@ -1105,7 +1104,13 @@
       bump.appendChild(undo); c.appendChild(bump);
     }
 
-    if(target!=null){
+    var needsWeight = (pl.w==null && !ex.bw);
+    if(needsWeight){
+      c.appendChild(el("div","hero fail","FIND A WEIGHT"));
+      c.appendChild(el("div","herosub",
+        "No weight set for this one yet. Use + until it looks like something you could do about "+
+        ex.hi+" times. You only do this once — after today it carries forward."));
+    } else if(target!=null){
       c.appendChild(el("div","hero","STOP AT "+target));
       c.appendChild(el("div","herosub", subFor(ex,i,rec,target,pl)));
     } else if(ex.big){
@@ -1122,6 +1127,10 @@
 
     /* rest panel, or the log button */
     if(restShown() && local.restExId===ex.id) c.appendChild(restPanel(ex,i));
+    else if(needsWeight){
+      var nb=bigBtn("Set a weight first","",function(){});
+      nb.disabled=true; c.appendChild(nb);
+    }
     else c.appendChild(bigBtn("Done — log set "+(i+1),"go",function(){ openLog(ex,i); }));
 
     var row=el("div","cardfoot");
@@ -1137,7 +1146,9 @@
   }
 
   function subFor(ex,i,rec,target,pl){
-    if(i===0 && !lastDone(sel,ex.id)) return "First time at this weight. "+target+" comes from the range, not from how you feel.";
+    if(i===0 && !lastDone(sel,ex.id))
+      return (ex.bw ? "First time doing these here. " : "First time at this weight. ")+
+             target+" comes from the range, not from how you feel.";
     if(pl.from!=null) return "New weight. One off the top.";
     var q=(rec.q||[])[i-1];
     if(q===0) return "Earlier than felt right last set. That is the point.";
@@ -1354,7 +1365,7 @@
     l.type="button";
     l.appendChild(el("span","lmark",bad?"!":"✓"));
     l.appendChild(el("span","lname",ex.n));
-    l.appendChild(el("span","lw",rec.w!=null?rec.w+" kg":""));
+    l.appendChild(el("span","lw",rec.w!=null?rec.w+" kg":(ex.bw?"bodyweight":"")));
     l.appendChild(el("span","lreps",got.join(" / ")));
     var tag = rec.fin && got.length<ex.s ? got.length+" of "+ex.s+" sets"
             : (got.length>=ex.s && got[got.length-1]>=ex.hi) ? "goes up"
