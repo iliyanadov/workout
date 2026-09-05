@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 8;
+  var BUILD = 9;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -93,6 +93,15 @@
 
   var today = todayISO();
   function effToday(){ return today < BLOCK ? BLOCK : today; }
+  function daysAway(d){ return Math.round((parse(d)-parse(today))/86400000); }
+  function whenLabel(d){
+    var n=daysAway(d);
+    if(n===0) return "Today · "+pretty(d);
+    if(n===1) return "Tomorrow · "+pretty(d);
+    if(n>1)   return "In "+n+" days · "+pretty(d);
+    if(n===-1)return "Yesterday · "+pretty(d);
+    return pretty(d);
+  }
   var sel = effToday();
 
   /* ---------------- state ---------------- */
@@ -888,7 +897,7 @@
 
   function startCard(sess,order,cnt){
     var c=el("div","card start");
-    c.appendChild(el("div","kicker","Today · "+pretty(sel)));
+    c.appendChild(el("div","kicker",whenLabel(sel).toUpperCase()));
     c.appendChild(el("div","bigtitle",sess.name));
     c.appendChild(el("div","sub",sess.sub));
     var sets=0; order.forEach(function(e){ sets+=e.s; });
@@ -908,7 +917,15 @@
 
     c.appendChild(el("div","rule","Every set but the last stops with two reps still in you. The last set goes to failure. The app tells you the number."));
 
-    var label = cnt.done>0 ? "Pick up where you left off" : "Start "+sess.name;
+    if(sel!==today){
+      var n=daysAway(sel);
+      c.appendChild(el("div","warnline",
+        n>0 ? "Your block starts "+pretty(sel)+". Today is "+pretty(today)+
+              ". Start it now and it is logged against "+shortD(sel)+", not today."
+            : "You are looking at "+pretty(sel)+", not today."));
+    }
+    var label = cnt.done>0 ? "Pick up where you left off"
+              : (sel!==today ? "Start "+sess.name+" early" : "Start "+sess.name);
     c.appendChild(bigBtn(label,"go",function(){
       local.started=Date.now(); saveRun();
       var r=day(sel); r.run=r.run||{}; r.run.st=Date.now(); touch(); render();
