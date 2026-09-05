@@ -1,6 +1,11 @@
-/* Offline shell. Bump CACHE on every deploy or clients keep the old build. */
-const CACHE = "workout-v6";
+/* Offline shell.
+   Code (the document, app.js, config.js) is NETWORK-FIRST so a deploy reaches
+   the phone immediately and cannot be pinned by GitHub Pages' max-age=600.
+   Static assets stay cache-first. Offline still works: every network-first
+   fetch falls back to the cache. */
+const CACHE = "workout-v7";
 const CORE  = "./index.html";
+const CODE  = ["/workout/", "/workout/index.html", "/workout/app.js", "/workout/config.js", "/workout/version.json"];
 const SHELL = [
   "./", "./index.html", "./app.js", "./config.js", "./vendor/supabase.js",
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
@@ -10,8 +15,6 @@ const SHELL = [
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    // The core document must land. Everything else is best-effort, so one bad
-    // asset cannot wedge the worker and leave old caches undeleted forever.
     await c.add(CORE);
     await Promise.all(SHELL.map((u) => c.add(u).catch(() => {})));
     await self.skipWaiting();
@@ -26,13 +29,16 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
+function isCode(url, req) {
+  return req.mode === "navigate" || CODE.includes(url.pathname);
+}
+
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
   if (url.origin !== self.location.origin) {
-    // Fonts may be cached. Supabase and everything else must never be.
     if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") {
       e.respondWith((async () => {
         const c = await caches.open(CACHE);
@@ -42,31 +48,38 @@ self.addEventListener("fetch", (e) => {
           const res = await fetch(req);
           if (res.ok) c.put(req, res.clone());
           return res;
-        } catch (err) {
-          return new Response("", { status: 504, statusText: "offline" });
-        }
+        } catch (err) { return new Response("", { status: 504 }); }
       })());
     }
+    return;
+  }
+
+  if (isCode(url, req)) {
+    e.respondWith((async () => {
+      const c = await caches.open(CACHE);
+      try {
+        const res = await fetch(req, { cache: "no-store" });
+        if (res && res.ok) c.put(req, res.clone());
+        return res;
+      } catch (err) {
+        const hit = await c.match(req);
+        if (hit) return hit;
+        const core = await c.match(CORE);
+        if (req.mode === "navigate" && core) return core;
+        return new Response("", { status: 504 });
+      }
+    })());
     return;
   }
 
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
     const hit = await c.match(req);
-    if (hit) {
-      // Refresh in the background; never block the response on the network.
-      fetch(req).then((res) => { if (res && res.ok) c.put(req, res.clone()); }).catch(() => {});
-      return hit;
-    }
+    if (hit) return hit;
     try {
       const res = await fetch(req);
       if (res && res.ok) c.put(req, res.clone());
       return res;
-    } catch (err) {
-      // A cold offline start must still get the app, never Safari's error page.
-      const core = await c.match(CORE);
-      if (req.mode === "navigate" && core) return core;
-      return new Response("", { status: 504, statusText: "offline" });
-    }
+    } catch (err) { return new Response("", { status: 504 }); }
   })());
 });

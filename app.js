@@ -5,6 +5,7 @@
 (function () {
   "use strict";
 
+  var BUILD = 7;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -144,7 +145,7 @@
   function setSync(cls,msg){
     var e=document.getElementById("sync");
     e.className = "chip" + (cls?" "+cls:"");
-    document.getElementById("syncmsg").textContent = msg;
+    document.getElementById("syncmsg").textContent = msg + "  ·  b" + BUILD;
   }
   function syncIdle(){
     var n=pendingCount();
@@ -1621,6 +1622,37 @@
     showApp(); setSync("off","Offline — saving on this device only");
   }
 
+  function freshen(){
+    if(!navigator.onLine) return;
+    fetch("./version.json?t="+Date.now(),{cache:"no-store"})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){
+        if(!j || j.build === BUILD) return;
+        var once="workout.reloaded."+j.build;
+        try{ if(sessionStorage.getItem(once)) return; sessionStorage.setItem(once,"1"); }catch(e){}
+        (self.caches ? caches.keys().then(function(k){
+          return Promise.all(k.map(function(n){ return caches.delete(n); }));
+        }) : Promise.resolve()).then(function(){
+          return navigator.serviceWorker && navigator.serviceWorker.getRegistrations
+            ? navigator.serviceWorker.getRegistrations().then(function(rs){
+                return Promise.all(rs.map(function(r2){ return r2.unregister(); })); })
+            : null;
+        }).then(function(){ location.reload(); }).catch(function(){ location.reload(); });
+      }).catch(function(){});
+  }
+
   if("serviceWorker" in navigator)
-    window.addEventListener("load",function(){ navigator.serviceWorker.register("./sw.js").catch(function(){}); });
+    window.addEventListener("load",function(){
+      navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"})
+        .then(function(reg){ if(reg && reg.update) reg.update(); })
+        .catch(function(){});
+      navigator.serviceWorker.addEventListener("controllerchange",function(){
+        try{ if(!sessionStorage.getItem("workout.swreload")){
+          sessionStorage.setItem("workout.swreload","1"); location.reload(); } }catch(e){}
+      });
+    });
+  freshen();
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible") freshen();
+  });
 })();
