@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 7;
+  var BUILD = 8;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1622,6 +1622,36 @@
     showApp(); setSync("off","Offline — saving on this device only");
   }
 
+  function forceUpdate(){
+    var m=document.getElementById("syncmsg");
+    if(!navigator.onLine){ m.textContent="Offline — cannot check for updates"; return; }
+    m.textContent="Checking for updates…";
+    fetch("./version.json?t="+Date.now(),{cache:"no-store"})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(j){
+        if(j && j.build === BUILD){
+          m.textContent="Up to date · b"+BUILD;
+          setTimeout(syncIdle,2200);
+          return;
+        }
+        m.textContent="Updating…";
+        return purgeAndReload();
+      }).catch(function(){ m.textContent="Could not check — try again on signal"; setTimeout(syncIdle,2600); });
+  }
+
+  function purgeAndReload(){
+    return (self.caches ? caches.keys().then(function(k){
+        return Promise.all(k.map(function(n){ return caches.delete(n); })); }) : Promise.resolve())
+      .then(function(){
+        return (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
+          ? navigator.serviceWorker.getRegistrations().then(function(rs){
+              return Promise.all(rs.map(function(r){ return r.unregister(); })); })
+          : null;
+      })
+      .then(function(){ location.reload(); })
+      .catch(function(){ location.reload(); });
+  }
+
   function freshen(){
     if(!navigator.onLine) return;
     fetch("./version.json?t="+Date.now(),{cache:"no-store"})
@@ -1630,14 +1660,7 @@
         if(!j || j.build === BUILD) return;
         var once="workout.reloaded."+j.build;
         try{ if(sessionStorage.getItem(once)) return; sessionStorage.setItem(once,"1"); }catch(e){}
-        (self.caches ? caches.keys().then(function(k){
-          return Promise.all(k.map(function(n){ return caches.delete(n); }));
-        }) : Promise.resolve()).then(function(){
-          return navigator.serviceWorker && navigator.serviceWorker.getRegistrations
-            ? navigator.serviceWorker.getRegistrations().then(function(rs){
-                return Promise.all(rs.map(function(r2){ return r2.unregister(); })); })
-            : null;
-        }).then(function(){ location.reload(); }).catch(function(){ location.reload(); });
+        purgeAndReload();
       }).catch(function(){});
   }
 
@@ -1651,6 +1674,7 @@
           sessionStorage.setItem("workout.swreload","1"); location.reload(); } }catch(e){}
       });
     });
+  document.getElementById("sync").addEventListener("click",forceUpdate);
   freshen();
   document.addEventListener("visibilitychange",function(){
     if(document.visibilityState==="visible") freshen();

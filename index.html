@@ -73,7 +73,8 @@ header{position:sticky;top:0;z-index:30;background:var(--ground);padding-top:var
   border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}
 .tab[aria-selected="true"]{background:var(--surface);color:var(--ink)}
 .chip{display:flex;align-items:center;gap:6px;font:500 12px/1 "IBM Plex Sans",sans-serif;
-  color:var(--muted);padding:0 0 9px}
+  color:var(--muted);padding:4px 0 11px;background:transparent;border:0;cursor:pointer;
+  font-family:inherit;text-align:left;min-height:32px}
 .chip .d{width:7px;height:7px;border-radius:50%;background:var(--faint);flex-shrink:0}
 .chip.ok .d{background:var(--good)}
 .chip.off .d{background:var(--warn)}
@@ -382,7 +383,7 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
         <button class="tab" role="tab" id="tab-plan" aria-selected="false">Plan</button>
       </div>
     </div>
-    <div class="chip" id="sync"><span class="d"></span><span id="syncmsg">Starting</span></div>
+    <button class="chip" id="sync" title="Tap to check for updates"><span class="d"></span><span id="syncmsg">Starting</span></button>
   </div>
 </header>
 
