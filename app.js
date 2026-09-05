@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 16;
+  var BUILD = 17;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -270,7 +270,7 @@
     return got.length>=2 && (got[0]-got[got.length-1])<=3 && heldBack(rec);
   }
   function earnsBump(ex,rec){
-    if(!rec) return false;
+    if(!rec || ex.bw) return false;          // nothing to add to a bodyweight lift
     var got=reps(rec);
     return got.length>=ex.s && got[got.length-1]>=ex.hi && (rec.q||[])[got.length-1]!==2;
   }
@@ -582,8 +582,9 @@
     var rec=peekEx(d,ex.id)||{};
     var r=(rec.r||[])[i-1], a=(rec.q||[])[i-1];
     if(r==null||r==="") return ex.hi-1;
-    var t2 = a===3 ? r+2 : a===0 ? r-2 : r;
-    return clamp(t2, ex.lo, ex.hi+4);
+    var t2 = clamp(a===3 ? r+2 : a===0 ? r-2 : r, ex.lo, ex.hi+4);
+    if(a===0) t2 = Math.max(1, Math.min(t2, r-1));   // it failed at r; aim below r
+    return t2;
   }
 
   function rampFor(d){
@@ -992,6 +993,7 @@
       var v = rec && rec.r ? rec.r[i] : null;
       var b=el("button","slotbtn"+(v==null||v===""?" empty":""), (v==null||v==="")?"–":String(v));
       b.type="button";
+      if(rec && rec.w==null && !ex.bw && (v==null||v==="")) b.disabled=true;
       b.setAttribute("aria-label", ex.n+" set "+(i+1)+(v==null?", not logged":", "+v+" reps"));
       b.addEventListener("click",function(){ openPad(ex,i); });
       var toFail = !ex.big || i===ex.s-1;
@@ -1353,19 +1355,24 @@
     c.appendChild(bigBtn("Next time I stop at "+dc.n,"amber",function(){
       var r=entry(sel,ex.id); r.nt=dc.n; touch();
       local.dropFor=null; saveRun();
-      var nx=cursor(sel);
-      if(nx) beginRest(ex,ex.s-1,restFor(ex));
       render();
     }));
     return c;
+  }
+
+  /* Start can be tapped days before training, so an unbounded now-minus-start
+     prints nonsense. Only report a plausible session length. */
+  function sessionMinutes(rec){
+    if(!rec||!rec.run||!rec.run.st) return null;
+    var m = Math.round(((rec.run.en || Date.now())-rec.run.st)/60000);
+    return (m<1 || m>240) ? null : m;
   }
 
   function finishCard(order,cnt){
     var c=el("div","card finish");
     var st=weekStats(mondayOf(sel));
     c.appendChild(el("div","bigtitle",sessionOf(sel).name+" — done"));
-    var mins = (peek(sel)&&peek(sel).run&&peek(sel).run.st)
-      ? Math.round((Date.now()-peek(sel).run.st)/60000) : null;
+    var mins = sessionMinutes(peek(sel));
     c.appendChild(el("div","meta2",cnt.done+" of "+cnt.total+" sets"+(mins?" · "+mins+" minutes":"")));
 
     var held=0,tot=0,bad=[];
@@ -1481,7 +1488,7 @@
     var c=el("div","card donecard");
     var rec=peek(sel)||{};
     c.appendChild(el("div","bigtitle",sessionOf(sel).name+" · complete"));
-    var mins=(rec.run&&rec.run.st&&rec.run.en)?Math.round((rec.run.en-rec.run.st)/60000):null;
+    var mins=sessionMinutes(rec);
     c.appendChild(el("div","meta2",setCounts(sel).done+" sets"+(mins?" · "+mins+" minutes":"")));
     order.forEach(function(ex){
       var r=peekEx(sel,ex.id); if(!r) return;
@@ -1534,7 +1541,9 @@
     l.appendChild(el("span","lmark",""));
     l.appendChild(el("span","lname",ex.n));
     l.appendChild(el("span","lw",ex.bw?"bodyweight":(pl.w!=null?pl.w+" kg":"set it")));
-    l.appendChild(el("span","ltag",ex.s+" × "+ex.lo+"–"+ex.hi));
+    var gotP=reps(peekEx(sel,ex.id));
+    l.appendChild(el("span","ltag", gotP.length ? gotP.join(" / ")+" · "+gotP.length+" of "+ex.s
+                                                : ex.s+" × "+ex.lo+"–"+ex.hi));
     l.addEventListener("click",function(){
       var r=day(sel), ord=sessionOrder(sel).map(function(e){return e.id;});
       ord.splice(ord.indexOf(ex.id),1); 
@@ -1673,12 +1682,19 @@
     bx.appendChild(el("div","statnote",
       "Everything you have logged, as one file. The only copy that survives a cleared browser, "+
       "a lost phone or a Supabase outage. Worth doing after any session you would hate to lose."));
+    var so=el("button","copybtn","Sign in as someone else");
+    so.addEventListener("click",function(){
+      try{ localStorage.removeItem(EMAIL_KEY); }catch(e){}
+      if(sb && sb.auth && sb.auth.signOut) sb.auth.signOut().catch(function(){});
+      user=null; showGate(""); syncIdle();
+    });
     var eb=el("button","copybtn","Export everything");
     eb.addEventListener("click",function(){ exportAll(eb); });
     bx.appendChild(eb);
     var ib=el("button","copybtn","Restore from a file");
     ib.addEventListener("click",function(){ importPick(ib); });
     bx.appendChild(ib);
+    bx.appendChild(so);
     box.appendChild(bx);
 
     var cb=el("button","copybtn","Copy week for review");
@@ -1770,7 +1786,7 @@
         var e=rec.ex&&rec.ex[ex.id]; if(!e) return;
         var got=((e.r)||[]).map(function(v,i2){ return (v==null||v==="")?null:v+((e.g||[])[i2]?"!":""); }).filter(Boolean);
         if(!got.length) return;
-        body.push("  "+ex.n+" "+(e.w!=null?e.w+"kg":"BW")+" — "+got.join(" "));
+        body.push("  "+ex.n+" "+(e.w!=null?e.w+"kg":(ex.bw?"BW":"weight not recorded"))+" — "+got.join(" "));
       });
       if(!body.length && !extra.length && !(rec.note||"").trim()) continue;
       out.push(pretty(ds)+(sess?" — "+sess.name:" — rest")+(extra.length?"  "+extra.join("  "):""));
@@ -1785,10 +1801,10 @@
   /* ---------------- plan view ---------------- */
   function renderPlan(){
     var box=document.getElementById("planbody");
-    if(box.dataset.built==="1") return;
-    box.innerHTML="";
     document.getElementById("hctxt").textContent="The plan";
     document.getElementById("hctxs").textContent="4 days · upper/lower · leg priority";
+    if(box.dataset.built==="1") return;
+    box.innerHTML="";
 
     var intro=el("div","stat");
     intro.appendChild(el("div","statlab","The block"));
