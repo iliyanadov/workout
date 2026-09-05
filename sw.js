@@ -1,5 +1,5 @@
 /* Offline shell. Bump CACHE on every deploy or clients keep the old build. */
-const CACHE = "workout-v4";
+const CACHE = "workout-v5";
 const CORE  = "./index.html";
 const SHELL = [
   "./", "./index.html", "./app.js", "./config.js", "./vendor/supabase.js",

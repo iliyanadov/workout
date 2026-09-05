@@ -10,27 +10,27 @@
 
   var PLAN = {
     lowerA: { name: "Lower A", sub: "knee dominant", ex: [
-      { id:"hacksquat", n:"Hack Squat",          s:4, lo:6,  hi:10, w:97.6,  step:2.5, big:1, reset:1 },
+      { id:"hacksquat", n:"Hack Squat",          s:4, lo:6,  hi:10, w:97.6,  step:2.5, big:1, reset:1, pat:"legs" },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
       { id:"legext",    n:"Leg Extension",       s:2, lo:12, hi:20, w:null,  step:2.5 },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
     upperA: { name: "Upper A", sub: "push bias", ex: [
-      { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1 },
-      { id:"csrow",     n:"Chest Support Row",   s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
+      { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push" },
+      { id:"csrow",     n:"Chest Support Row",   s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull" },
       { id:"incline",   n:"Incline DB Press",    s:3, lo:8,  hi:12, w:24,    step:2,   big:1 },
       { id:"pushdown",  n:"Triceps Pushdown",    s:3, lo:10, hi:15, w:null,  step:2.5 },
       { id:"reardelt",  n:"Rear Delt Flye",      s:3, lo:12, hi:20, w:null,  step:2.5 },
       { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2 } ] },
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
-      { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1 },
+      { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
       { id:"hipthrust", n:"Hip Thrust",          s:2, lo:8,  hi:12, w:62.7,  step:2.5 },
       { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5 },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
-      { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1 },
+      { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull" },
       { id:"csrow",     n:"Chest Support Row",   s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
       { id:"dips",      n:"Dips",                s:3, lo:8,  hi:12, w:null,  step:2.5, bw:1, big:1 },
       { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1 },
@@ -259,12 +259,12 @@
       s.addEventListener("release",function(){ wl=null; }); }).catch(function(){});
     if(!on && wl){ wl.release().catch(function(){}); wl=null; }
   }
-  function startRest(ex){
+  function startRest(ex,secs){
     ensureAudio();
-    restTotal = ex.big ? REST.big : REST.other;
+    restTotal = secs || (ex.big ? REST.big : REST.other);
     restEnd = Date.now()+restTotal*1000;
     document.getElementById("restwhat").textContent = ex.n;
-    document.getElementById("restsub").textContent = ex.big ? "3 minutes — big lift" : "90 seconds";
+    document.getElementById("restsub").textContent = restTotal>=180 ? "3 minutes — big lift" : restTotal+" seconds";
     var bar=document.getElementById("rest");
     bar.classList.add("on"); bar.classList.remove("done");
     holdScreen(true);
@@ -275,6 +275,8 @@
     var left=Math.max(0,restEnd-Date.now()), s=Math.ceil(left/1000);
     document.getElementById("clock").textContent = Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
     document.getElementById("restbar").style.width = (100-(left/(restTotal*1000))*100)+"%";
+    var ib=document.getElementById("restbig");
+    if(ib) ib.textContent = s>0 ? (Math.floor(s/60)+":"+String(s%60).padStart(2,"0")) : "GO.";
     if(s===0){
       clearInterval(restTick); restTick=null;
       document.getElementById("rest").classList.add("done");
@@ -292,6 +294,87 @@
 
   /* ---------------- rep pad ---------------- */
   var padCtx=null;
+
+  /* The sheet has three faces. Which one opens is decided by the set, never
+     by the user: a held-back big-lift set gets the three-button shortcut, a
+     failure set gets the grid, and a big-lift set that has just been given a
+     number gets the reserve question. */
+  function openLog(ex,i){
+    padCtx={ex:ex,i:i};
+    var target=stopTarget(sel,ex,i);
+    if(target!=null) padShort(ex,i,target);
+    else padGrid(ex,i,null);
+    document.getElementById("pad").classList.add("on");
+  }
+
+  function padHead(a,b){
+    document.getElementById("padwhat").textContent=a;
+    document.getElementById("padrange").textContent=b;
+  }
+  function padRows(list){
+    var g=document.getElementById("padgrid");
+    g.className="padstack"; g.innerHTML="";
+    list.forEach(function(o){
+      var b=el("button","bigopt"+(o.cls?" "+o.cls:""),o.t); b.type="button";
+      b.addEventListener("click",o.fn); g.appendChild(b);
+    });
+    document.getElementById("padgrind").classList.add("hidden");
+    document.getElementById("padclear").classList.remove("hidden");
+  }
+
+  function padShort(ex,i,target){
+    padHead(ex.n+" · set "+(i+1), "target "+target);
+    padRows([
+      { t:target+" — and I had two left", cls:"go",
+        fn:function(){ logSet(ex,i,target,2); } },
+      { t:target+" — but that was everything", cls:"amber",
+        fn:function(){ logSet(ex,i,target,0); } },
+      { t:"A different number", cls:"ghost",
+        fn:function(){ padGrid(ex,i,target); } }
+    ]);
+  }
+
+  function padGrid(ex,i,target){
+    padHead(ex.n+" · set "+(i+1),
+      target!=null ? "stop 2 short · target "+target
+                   : (!ex.big||i===ex.s-1 ? "to failure · "+ex.lo+"–"+ex.hi : "target "+ex.lo+"–"+ex.hi));
+    var g=document.getElementById("padgrid");
+    g.className="padgrid"; g.innerHTML="";
+    var from=Math.max(1,ex.lo-4), to=ex.hi+5;
+    for(var v=from;v<=to;v++){
+      var b=el("button","padbtn"+(v>=ex.lo&&v<=ex.hi?" inrange":"")+(v===target?" target":""),String(v));
+      b.type="button";
+      (function(val){ b.addEventListener("click",function(){
+        if(ex.big) padQuestion(ex,i,val); else logSet(ex,i,val,null);
+      }); })(v);
+      g.appendChild(b);
+    }
+    document.getElementById("padgrind").classList.add("hidden");
+    document.getElementById("padclear").classList.remove("hidden");
+  }
+
+  /* Fires only on big lifts — 3 or 4 times a session, exactly where this
+     lifter fails. All three answers are styled identically on purpose: the
+     moment honesty is punished visually, the data dies. */
+  function padQuestion(ex,i,v){
+    padCtx={ex:ex,i:i};
+    if(i===ex.s-1){
+      padHead(ex.n+" · set "+(i+1), "you logged "+v);
+      padRows([
+        { t:"Yes, that was everything", cls:"go",  fn:function(){ logSet(ex,i,v,0); } },
+        { t:"No, I racked it early",    cls:"ghost", fn:function(){ logSet(ex,i,v,2); } }
+      ]);
+      document.getElementById("padwhat").textContent="Was that true failure?";
+      return;
+    }
+    padHead("Could you have done two more?", "you logged "+v);
+    padRows([
+      { t:"More than two left",       cls:"opt", fn:function(){ logSet(ex,i,v,3); } },
+      { t:"About two — stopped on it",cls:"opt", fn:function(){ logSet(ex,i,v,2); } },
+      { t:"Nothing left — that was failure", cls:"opt", fn:function(){ logSet(ex,i,v,0); } }
+    ]);
+  }
+
   function openPad(ex,i){
     padCtx={ex:ex,i:i};
     document.getElementById("padwhat").textContent = ex.n+" · set "+(i+1);
@@ -309,8 +392,10 @@
     }
     var e=peekEx(sel,ex.id);
     var g=document.getElementById("padgrind");
+    g.classList.remove("hidden");
     g.classList.toggle("on", !!(e&&e.g&&e.g[i]));
     g.style.visibility = toFail ? "hidden" : "visible";
+    document.getElementById("padgrid").className="padgrid";
     document.getElementById("pad").classList.add("on");
     stopRest();
   }
@@ -336,6 +421,171 @@
     this.classList.toggle("on", !!rec.g[padCtx.i]);
     touch(); renderDay();
   });
+
+
+  /* ================= GUIDED SESSION =================
+     The Day tab, for today, on a training day, is a single column: ticked
+     lines above, exactly one open card, dim lines below. The open card prints
+     ONE integer to stop at, because the user cannot judge two-in-reserve
+     under load — that judgement is the documented problem. Position is always
+     derived from the data (cursor), never stored, so a crash, a force-quit or
+     an edit on another device all land in the same place. */
+
+  var RUNK = "workout.run.v1";
+  var local = { d:null };
+  var listMode = false;
+
+  function loadLocal2(){
+    try{ var r=JSON.parse(localStorage.getItem(RUNK)||"null");
+         local = (r && r.d===today) ? r : { d:today }; }
+    catch(e){ local = { d:today }; }
+    local.warmTicks = local.warmTicks || [];
+  }
+  function saveRun(){ try{ localStorage.setItem(RUNK, JSON.stringify(local)); }catch(e){} }
+
+  function sessionOrder(d){
+    var s=sessionOf(d); if(!s) return [];
+    var r=peek(d), ord=r&&r.ord;
+    if(!ord) return s.ex.slice();
+    var byId={}; s.ex.forEach(function(e){ byId[e.id]=e; });
+    var out=[]; ord.forEach(function(id){ if(byId[id]){ out.push(byId[id]); delete byId[id]; } });
+    s.ex.forEach(function(e){ if(byId[e.id]) out.push(e); });
+    return out;
+  }
+  function exDone(d,ex){
+    var r=peekEx(d,ex.id);
+    if(r&&r.fin) return true;
+    if(!r||!r.r) return false;
+    for(var i=0;i<ex.s;i++) if(r.r[i]==null||r.r[i]==="") return false;
+    return true;
+  }
+  function skipped(d,ex){ var r=peek(d); return !!(r&&r.skip&&r.skip[ex.id]); }
+
+  function cursor(d){
+    var order=sessionOrder(d);
+    for(var j=0;j<order.length;j++){
+      var ex=order[j];
+      if(skipped(d,ex)||exDone(d,ex)) continue;
+      var rec=peekEx(d,ex.id);
+      for(var i=0;i<ex.s;i++)
+        if(!rec||!rec.r||rec.r[i]==null||rec.r[i]==="") return {ex:ex,i:i,idx:j};
+    }
+    return null;
+  }
+  function isTargetSet(ex,i){ return !!ex.big && i < ex.s-1; }
+  function restFor(ex,q0){ return ex.big ? (q0===0?210:REST.big) : REST.other; }
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function estFailure(r,q){ return q===3 ? r+3 : q===2 ? r+2 : q===0 ? r : r+1; }
+
+  /* The number the user is told to stop at. null => this set goes to failure. */
+  function stopTarget(d,ex,i){
+    if(!isTargetSet(ex,i)) return null;
+    var prev=lastDone(d,ex.id);
+    if(i===0){
+      if(prev && prev.e.nt!=null) return clamp(prev.e.nt, ex.lo, ex.hi+4);
+      if(!prev) return ex.hi-1;
+      var est=estFailure(prev.got[0], (prev.e.q||[])[0]);
+      var t=est-2;
+      var pw=planned(d,ex).w, ow=prev.e.w!=null?prev.e.w:ex.w;
+      if(pw!=null && ow!=null && pw>ow) t-=1;
+      t=clamp(t, ex.lo, ex.hi+4);
+      return clamp(t, prev.got[0]-2, prev.got[0]+2);
+    }
+    var rec=peekEx(d,ex.id)||{};
+    var r=(rec.r||[])[i-1], a=(rec.q||[])[i-1];
+    if(r==null||r==="") return ex.hi-1;
+    var t2 = a===3 ? r+2 : a===0 ? r-2 : r;
+    return clamp(t2, ex.lo, ex.hi+4);
+  }
+
+  function rampFor(d){
+    var order=sessionOrder(d); if(!order.length) return null;
+    var ex=order[0]; if(!ex.big||ex.w==null) return null;
+    var w=planned(d,ex).w; if(w==null) return null;
+    function rnd(p){ var v=Math.round(w*p/ex.step)*ex.step; return Math.round(v*10)/10; }
+    return { ex:ex, rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
+                           {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w };
+  }
+
+  function minsLeft(d){
+    var order=sessionOrder(d), cur=cursor(d), mins=0;
+    if(!cur) return 0;
+    order.forEach(function(ex,j){
+      if(skipped(d,ex)||exDone(d,ex)) return;
+      var rec=peekEx(d,ex.id), from=0;
+      if(j===cur.idx) from=cur.i;
+      for(var i=from;i<ex.s;i++){
+        if(rec&&rec.r&&rec.r[i]!=null&&rec.r[i]!=="") continue;
+        mins += 45 + restFor(ex);
+      }
+    });
+    return Math.max(1, Math.ceil((mins-restFor(order[order.length-1]||{}))/60));
+  }
+  function setCounts(d){
+    var order=sessionOrder(d), total=0, done=0;
+    order.forEach(function(ex){
+      if(skipped(d,ex)) return;
+      total+=ex.s;
+      done += reps(peekEx(d,ex.id)).length;
+    });
+    return {done:done,total:total};
+  }
+
+  /* Which of the plan's three causes explains a bad exercise. Order is the
+     plan's own: effort, then rest, then load. Cause 3 never cuts the weight. */
+  function dropCause(d,ex){
+    var rec=peekEx(d,ex.id); if(!rec) return null;
+    var got=reps(rec); if(got.length<2) return null;
+    var q=rec.q||[], t=rec.t||[];
+    var failedEarly=false;
+    for(var i=0;i<ex.s-1;i++) if(q[i]===0) failedEarly=true;
+    var drop=got[0]-got[got.length-1];
+    if(drop<=3 && !failedEarly) return null;
+    var n=Math.max(ex.lo, got[0]-2);
+    if(failedEarly) return { c:1, n:n,
+      line:"You marked a set as everything you had, on a set that should have stopped two short. That is cause one, not the weight. Same load next time." };
+    var short=false, need=restFor(ex)*0.75;
+    for(var j=0;j<t.length;j++) if(t[j]!=null && t[j]<need) short=true;
+    if(short) return { c:2, n:n,
+      line:"You cut the rest between sets. That is cause two. Take the full "+(restFor(ex)/60===3?"three minutes":"ninety seconds")+" before you blame the weight." };
+    return { c:3, n:n,
+      line:"Effort held, rest timed, and still that much drop-off. Noted — one exercise is noise. If it repeats next time the weight comes down. Not before." };
+  }
+
+  /* ---------- rest clock (device-local, absolute timestamp) ---------- */
+  function beginRest(ex,i,secs){
+    local.restEndAt = Date.now()+secs*1000;
+    local.restExId  = ex.id; local.restSetIdx=i; local.restSecs=secs;
+    local.restStart = Date.now();
+    saveRun(); startRest(ex,secs);
+  }
+  function restLive(){ return local.restEndAt && Date.now() < local.restEndAt; }
+  function restShown(){ return !!local.restEndAt; }
+  function clearRest(record){
+    if(record && local.restExId!=null && local.restStart){
+      var secs=Math.round((Date.now()-local.restStart)/1000);
+      var rec=peekEx(sel,local.restExId);
+      if(rec){ rec.t=rec.t||[]; rec.t[local.restSetIdx]=secs; touch(); }
+    }
+    local.restEndAt=null; local.restExId=null; local.restStart=null;
+    saveRun(); stopRest();
+  }
+
+  /* ---------- writing a set ---------- */
+  function logSet(ex,i,v,q){
+    var rec=entry(sel,ex.id);
+    if(rec.w==null) rec.w=planned(sel,ex).w;
+    rec.r=rec.r||[]; rec.r[i]=v;
+    if(q!=null){ rec.q=rec.q||[]; rec.q[i]=q; rec.g=rec.g||[]; rec.g[i]=(q===0); }
+    touch();
+    closePad();
+    if(exDone(sel,ex)){
+      var dc=dropCause(sel,ex);
+      if(dc){ local.dropFor=ex.id; saveRun(); render(); return; }
+    }
+    beginRest(ex,i,restFor(ex,q));
+    render();
+  }
 
   /* ---------------- day view ---------------- */
   function dayMark(d){
@@ -363,6 +613,8 @@
   }
 
   function renderDay(){
+    if(runActive()){ renderRun(); return; }
+    chrome(true);
     renderStrip();
     var wn=weekNo(mondayOf(sel));
     var sess=sessionOf(sel), key=sessionKey(sel);
@@ -408,10 +660,20 @@
         clr.addEventListener("click",function(){ day(sel).k=null; touch(); renderDay(); });
         mp.appendChild(clr); pick.appendChild(mp);
       }
+      if(listMode && sel===today){
+        var back2=el("button","quietbtn","Back to the guided session");
+        back2.addEventListener("click",function(){ listMode=false; render(); });
+        list.appendChild(back2);
+      }
       sess.ex.forEach(function(ex){ list.appendChild(exCard(ex)); });
       document.getElementById("dayhint").innerHTML =
         "Tap a set to log it. Anything that turned into a grind when it should have stopped two short, mark it on the pad — that is the difference between the app telling you to hold the weight and telling you to drop it.";
     } else {
+      if(listMode && sel===today){
+        var back=el("button","quietbtn","Back to the guided session");
+        back.addEventListener("click",function(){ listMode=false; render(); });
+        list.appendChild(back);
+      }
       list.appendChild(el("div","empty","No session scheduled. Did you train today anyway? Pick what you did and log it here."));
       var row=document.createElement("div"); row.className="pickrow";
       ORDER.forEach(function(k){
@@ -532,6 +794,475 @@
       s.appendChild(el("div","slotfoot"+(toFail?" f":""), toFail?"FAIL":"2 LEFT"));
       return s;
     }
+  }
+
+
+  /* ---------------- guided column: rendering ---------------- */
+  function runActive(){
+    return !listMode && sel===today && inBlock(sel) && !!sessionOf(sel);
+  }
+  function chrome(show){
+    ["weeknav","daystrip"].forEach(function(id){
+      var e=document.getElementById(id); if(e) e.classList.toggle("hidden",!show);
+    });
+    document.querySelector(".sesshead").classList.toggle("hidden",!show);
+    document.getElementById("sesspick").classList.toggle("hidden",!show);
+    document.querySelector(".meta").classList.toggle("hidden",!show);
+    document.getElementById("dayhint").classList.toggle("hidden",!show);
+  }
+
+  function bigBtn(label,cls,fn){
+    var b=el("button","runbtn"+(cls?" "+cls:""),label); b.type="button";
+    b.addEventListener("click",fn); return b;
+  }
+  function quiet(label,fn){
+    var b=el("button","quietbtn",label); b.type="button";
+    b.addEventListener("click",fn); return b;
+  }
+
+  function renderRun(){
+    chrome(false);
+    var box=document.getElementById("exlist"); box.innerHTML="";
+    var sess=sessionOf(sel), order=sessionOrder(sel), rec=peek(sel)||{};
+    var cur=cursor(sel), cnt=setCounts(sel);
+
+    document.getElementById("hctxt").textContent=sess.name;
+    document.getElementById("hctxs").textContent =
+      rec.run&&rec.run.en ? "Complete · "+cnt.done+" sets"
+      : cur ? cnt.done+" / "+cnt.total+" sets · "+pretty(sel)
+            : "All sets logged";
+
+    /* DONE for the rest of the day */
+    if(rec.run && rec.run.en){ box.appendChild(doneCard(order)); return; }
+
+    /* IDLE — nothing started */
+    if(!local.started && cnt.done===0){ box.appendChild(startCard(sess,order,cnt)); return; }
+
+    /* CAPTURES */
+    if(local.capturing){ box.appendChild(capturesCard()); return; }
+
+    /* run header */
+    box.appendChild(runHeader(sess,cnt));
+
+    /* warm-up */
+    var ramp=rampFor(sel);
+    if(ramp && !local.warmSkipped && (local.warmTicks||[]).filter(Boolean).length < 3)
+      box.appendChild(warmCard(ramp));
+    else if(ramp) box.appendChild(tickLine(local.warmSkipped?"– Warm-up skipped":"✓ Warm-up", ""));
+
+    /* the column */
+    order.forEach(function(ex,j){
+      if(skipped(sel,ex)){ box.appendChild(tickLine("– "+ex.n,"skipped")); return; }
+      if(exDone(sel,ex)){ box.appendChild(doneLine(ex)); return; }
+      if(cur && ex.id===cur.ex.id){
+        if(local.dropFor===ex.id){ box.appendChild(dropCard(ex)); return; }
+        box.appendChild(openCard(ex,cur.i));
+        return;
+      }
+      box.appendChild(pendingLine(ex));
+    });
+
+    /* the drop-off card can belong to a finished exercise */
+    if(local.dropFor && (!cur || cur.ex.id!==local.dropFor)){
+      var dex=null; order.forEach(function(e){ if(e.id===local.dropFor) dex=e; });
+      if(dex) box.insertBefore(dropCard(dex), box.children[cur?2:1]||null);
+    }
+
+    if(!cur) box.appendChild(finishCard(order,cnt));
+  }
+
+  function runHeader(sess,cnt){
+    var h=el("div","runhead");
+    h.appendChild(el("div","runname",sess.name));
+    var segs=el("div","segs");
+    for(var i=0;i<cnt.total;i++) segs.appendChild(el("span","seg"+(i<cnt.done?" on":"")));
+    h.appendChild(segs);
+    var left=minsLeft(sel);
+    h.appendChild(el("div","runsub", cnt.done>=cnt.total
+      ? "All "+cnt.total+" sets logged"
+      : "Set "+(cnt.done+1)+" of "+cnt.total+" · about "+left+" min left"));
+    return h;
+  }
+
+  function startCard(sess,order,cnt){
+    var c=el("div","card start");
+    c.appendChild(el("div","kicker","Today · "+pretty(sel)));
+    c.appendChild(el("div","bigtitle",sess.name));
+    c.appendChild(el("div","sub",sess.sub));
+    var sets=0; order.forEach(function(e){ sets+=e.s; });
+    c.appendChild(el("div","meta2",order.length+" exercises · "+sets+" sets · about "+minsLeft(sel)+" min"));
+    c.appendChild(el("div","exnames",order.map(function(e){return e.n;}).join(" · ")));
+
+    var wn=weekNo(mondayOf(sel));
+    var warn=null;
+    var firstBig=null; order.forEach(function(e){ if(!firstBig&&e.big) firstBig=e; });
+    if(firstBig){
+      var prev=lastDone(sel,firstBig.id);
+      if(prev && (prev.e.q||[])[0]===0)
+        warn="Last time set 1 of "+firstBig.n.toLowerCase()+" went to failure. Today's one job is not doing that.";
+    }
+    if(!warn && wn<=3) warn="Weeks one to three are calibration. The weights are deliberately light. Do not fix that.";
+    if(warn) c.appendChild(el("div","warnline",warn));
+
+    c.appendChild(el("div","rule","Every set but the last stops with two reps still in you. The last set goes to failure. The app tells you the number."));
+
+    var label = cnt.done>0 ? "Pick up where you left off" : "Start "+sess.name;
+    c.appendChild(bigBtn(label,"go",function(){
+      local.started=Date.now(); saveRun();
+      var r=day(sel); r.run=r.run||{}; r.run.st=Date.now(); touch(); render();
+    }));
+    c.appendChild(quiet("Log it yourself instead",function(){ listMode=true; render(); }));
+    return c;
+  }
+
+  function warmCard(ramp){
+    var c=el("div","card warm");
+    c.appendChild(el("div","kicker","Warm up · about 4 min"));
+    c.appendChild(el("div","warnline","Without this, set 1 is the warm-up — and set 1 is the set you keep taking to failure."));
+    var ticks=local.warmTicks||[];
+    var rows=[{t:"2 minutes. Bike, walk, stairs.",w:null}]
+      .concat(ramp.rows.map(function(r){ return {t:ramp.ex.n+" · "+r.w+" kg × "+r.reps, w:r.why}; }));
+    rows.forEach(function(row,i){
+      var r=el("div","warmrow"+(ticks[i]?" on":""));
+      var left=el("div","warmtxt");
+      left.appendChild(el("div","warmmain",(ticks[i]?"✓ ":"○ ")+row.t));
+      if(row.w) left.appendChild(el("div","warmwhy",row.w));
+      r.appendChild(left);
+      if(!ticks[i]) r.appendChild(bigBtn("Done","sm",function(){
+        local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1; saveRun(); render();
+      }));
+      c.appendChild(r);
+    });
+    c.appendChild(el("div","warmthen","Then: "+ramp.ex.n+", "+ramp.top+" kg."));
+    c.appendChild(quiet("Skip warm-up",function(){ local.warmSkipped=1; saveRun(); render(); }));
+    return c;
+  }
+
+  function openCard(ex,i){
+    var c=el("div","card open");
+    var rec=peekEx(sel,ex.id)||{};
+    var pl=planned(sel,ex);
+    var target=stopTarget(sel,ex,i);
+
+    var head=el("div","cardhead");
+    head.appendChild(el("div","cardname",ex.n));
+    head.appendChild(el("div","cardtag",ex.big?"BIG LIFT":"ACCESSORY"));
+    c.appendChild(head);
+
+    /* weight row */
+    var wr=el("div","wrow2");
+    if(ex.bw){ wr.appendChild(el("div","wbig","Bodyweight")); }
+    else{
+      var minus=el("button","wbtn","−"); minus.type="button"; minus.setAttribute("aria-label","Less weight");
+      var val=el("div","wbig",(pl.w==null?"—":pl.w)+" kg");
+      var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
+      minus.addEventListener("click",function(){ var r=entry(sel,ex.id);
+        r.w=Math.max(0,Math.round(((pl.w||0)-ex.step)*10)/10); touch(); render(); });
+      plus.addEventListener("click",function(){ var r=entry(sel,ex.id);
+        r.w=Math.round(((pl.w||0)+ex.step)*10)/10; touch(); render(); });
+      wr.appendChild(minus); wr.appendChild(val); wr.appendChild(plus);
+    }
+    wr.appendChild(el("div","setof","set "+(i+1)+" of "+ex.s));
+    c.appendChild(wr);
+
+    /* slots so far */
+    var sl=el("div","slots2");
+    for(var k=0;k<ex.s;k++){
+      var v=(rec.r||[])[k];
+      var b=el("span","s2"+(v==null||v===""?" e":"")+((rec.q||[])[k]===0?" g":""),
+               (v==null||v==="")?"–":String(v));
+      sl.appendChild(b);
+    }
+    c.appendChild(sl);
+
+    /* the instruction — the whole product */
+    if(pl.from!=null){
+      var bump=el("div","bumped");
+      bump.appendChild(el("span","","Earned it "+shortD(pl.on)+" · "+pl.from+" → "+pl.w+" kg"));
+      var undo=el("button",null,"Keep "+pl.from);
+      undo.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
+      bump.appendChild(undo); c.appendChild(bump);
+    }
+
+    if(target!=null){
+      c.appendChild(el("div","hero","STOP AT "+target));
+      c.appendChild(el("div","herosub", subFor(ex,i,rec,target,pl)));
+    } else if(ex.big){
+      c.appendChild(el("div","hero fail","GO TO FAILURE"));
+      c.appendChild(el("div","herosub","No holding back. The set ends when a rep stops moving. "+ex.hi+" or more and the weight goes up next session."));
+    } else {
+      c.appendChild(el("div","hero fail","TO FAILURE"));
+      c.appendChild(el("div","herosub","Every set on this one. Cheap fatigue, no reason to hold back. "+ex.lo+"–"+ex.hi+" is where it should land."));
+    }
+
+    var prev=lastDone(sel,ex.id);
+    if(prev && pl.from==null)
+      c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":"bodyweight")+" · "+prev.got.join(" / ")));
+
+    /* rest panel, or the log button */
+    if(restShown() && local.restExId===ex.id) c.appendChild(restPanel(ex,i));
+    else c.appendChild(bigBtn("Done — log set "+(i+1),"go",function(){ openLog(ex,i); }));
+
+    var row=el("div","cardfoot");
+    row.appendChild(quiet("Machine taken",function(){
+      var r=day(sel); r.skip=r.skip||{}; r.skip[ex.id]=1;
+      if(!r.note) r.note="Machine taken"; touch(); render();
+    }));
+    row.appendChild(quiet("End this exercise",function(){
+      var r=entry(sel,ex.id); r.fin=1; touch(); clearRest(false); render();
+    }));
+    c.appendChild(row);
+    return c;
+  }
+
+  function subFor(ex,i,rec,target,pl){
+    if(i===0 && !lastDone(sel,ex.id)) return "First time at this weight. "+target+" comes from the range, not from how you feel.";
+    if(pl.from!=null) return "New weight. One off the top.";
+    var q=(rec.q||[])[i-1];
+    if(q===0) return "Earlier than felt right last set. That is the point.";
+    if(q===3) return "More than two left last set. Go further this time.";
+    return "Not when it gets hard. At "+target+".";
+  }
+
+  function restPanel(ex,i){
+    var p=el("div","restpanel");
+    var rec=peekEx(sel,ex.id)||{};
+    var v=(rec.r||[])[local.restSetIdx], q=(rec.q||[])[local.restSetIdx];
+    p.appendChild(el("div","restlogged","Set "+(local.restSetIdx+1)+" logged: "+v+
+      (q===0?" · nothing left":q===2?" · two left ✓":q===3?" · more than two left":"")));
+    var left=Math.max(0,Math.round((local.restEndAt-Date.now())/1000));
+    var big=el("div","restbig",left>0?(Math.floor(left/60)+":"+String(left%60).padStart(2,"0")):"GO.");
+    big.id="restbig"; p.appendChild(big);
+    p.appendChild(el("div","restwhy",left>0
+      ? "Rest. "+(local.restSecs>=180?"Three minutes — big lift.":"Ninety seconds.")
+      : "Next: set "+(i+1)+"."));
+    var line=coachLine(ex,local.restSetIdx,rec);
+    if(line) p.appendChild(el("div","coach",line));
+    var r=el("div","cardfoot");
+    r.appendChild(quiet(left>0?"Skip rest — I'm ready":"Clear",function(){ clearRest(true); render(); }));
+    r.appendChild(quiet("Someone's waiting",function(){
+      local.restEndAt=Date.now()+60000; local.restSecs=60; saveRun(); startRest(ex,60); render();
+    }));
+    p.appendChild(r);
+    return p;
+  }
+
+  function coachLine(ex,i,rec){
+    var v=(rec.r||[])[i], q=(rec.q||[])[i];
+    if(v==null) return null;
+    if(!ex.big) return null;
+    var target=stopTarget(sel,ex,i);
+    if(q===0 && i===0) return "Set 1 went to failure. That is the thing this whole plan exists to fix.";
+    if(q===0) return "Failure again. You are spending the last set to buy this one. Next set, count it out and rack it.";
+    if(target!=null && v>=target+3 && q!==0) return v+" when the number was "+target+", and still had something left. The load is light — it goes up next session.";
+    if(target!=null && v<=target-2) return v+" against a target of "+target+". In order: did set 1 go to failure anyway, was the rest actually full, and only then is it the weight.";
+    if(q===3) return "More than two left at "+v+"? Then that was not the set. Next one, go further and stop there.";
+    if(q===2) return v+" with two left. Exactly the set the plan is built on. Do that again.";
+    return null;
+  }
+
+  function dropCard(ex){
+    var dc=dropCause(sel,ex); if(!dc){ local.dropFor=null; saveRun(); return el("div",""); }
+    var got=reps(peekEx(sel,ex.id));
+    var c=el("div","card drop");
+    c.appendChild(el("div","dropnums",got.join(" · ")));
+    c.appendChild(el("div","cardname",ex.n));
+    if(got[0]-got[got.length-1]>3)
+      c.appendChild(el("div","warnline","That is one working set and the rest that do not count."));
+    c.appendChild(el("div","dropline",dc.line));
+    c.appendChild(bigBtn("Next time I stop at "+dc.n,"amber",function(){
+      var r=entry(sel,ex.id); r.nt=dc.n; touch();
+      local.dropFor=null; saveRun();
+      var nx=cursor(sel);
+      if(nx) beginRest(ex,ex.s-1,restFor(ex));
+      render();
+    }));
+    return c;
+  }
+
+  function finishCard(order,cnt){
+    var c=el("div","card finish");
+    var st=weekStats(mondayOf(sel));
+    c.appendChild(el("div","bigtitle",sessionOf(sel).name+" — done"));
+    var mins = (peek(sel)&&peek(sel).run&&peek(sel).run.st)
+      ? Math.round((Date.now()-peek(sel).run.st)/60000) : null;
+    c.appendChild(el("div","meta2",cnt.done+" of "+cnt.total+" sets"+(mins?" · "+mins+" minutes":"")));
+
+    var held=0,tot=0,bad=[];
+    order.forEach(function(ex){
+      var rec=peekEx(sel,ex.id); if(!rec) return;
+      var got=reps(rec); if(got.length<2||!ex.big) return;
+      tot++; if(got[0]-got[got.length-1]<=3) held++; else bad.push(ex.n+" went "+got.join(" / "));
+    });
+    c.appendChild(el("div","statlab","Calibration"));
+    c.appendChild(el("div","bignum")).textContent=held+" / "+tot;
+    c.appendChild(el("div","statnote", tot===0 ? "No big lifts logged today."
+      : (held===tot && bad.length===0)
+        ? "Big lifts that held within three reps of set 1. That is the shape."
+        : bad.length ? held+" / "+tot+" — but "+bad[0]+". Next time, stop set 1 earlier than feels right."
+        : "Big lifts that held within three reps of set 1."));
+
+    var ups=[];
+    order.forEach(function(ex){
+      var rec=peekEx(sel,ex.id); if(!rec) return;
+      var got=reps(rec);
+      if(got.length>=ex.s && got[got.length-1]>=ex.hi && (rec.q||[])[got.length-1]!==2)
+        ups.push(ex.n+"  "+(rec.w!=null?rec.w+" → "+Math.round((rec.w+ex.step)*10)/10+" kg":"next notch up"));
+    });
+    if(ups.length){
+      c.appendChild(el("h2","sec","Goes up next time"));
+      ups.forEach(function(u){ c.appendChild(el("div","upline",u)); });
+    }
+
+    c.appendChild(el("h2","sec","One thing for next time"));
+    c.appendChild(el("div","onething",oneThing(order)));
+    c.appendChild(bigBtn("Nearly done — three questions","go",function(){
+      local.capturing=1; saveRun(); render(); window.scrollTo(0,0);
+    }));
+    return c;
+  }
+
+  function oneThing(order){
+    for(var j=0;j<order.length;j++){
+      var ex=order[j], rec=peekEx(sel,ex.id); if(!rec||!ex.big) continue;
+      if((rec.q||[])[0]===0) return ex.n+" set 1: stop at "+Math.max(ex.lo,(rec.r||[])[0]-2)+", whatever it feels like.";
+    }
+    for(var k=0;k<order.length;k++){
+      var e2=order[k], r2=peekEx(sel,e2.id); if(!r2||!e2.big) continue;
+      var g=reps(r2); if(g.length>=2 && g[0]-g[g.length-1]>3)
+        return e2.n+" fell off more than three reps. Same weight next time; hold set 1 back.";
+    }
+    if(local.warmSkipped) return "Do the warm-up next time. Set 1 is not the place to find out what today feels like.";
+    return "Nothing. Repeat this session exactly.";
+  }
+
+  function capturesCard(){
+    var c=el("div","card captures");
+    c.appendChild(el("div","kicker","Before you go"));
+    var rec=peek(sel)||{};
+
+    var wk=weekStats(mondayOf(sel));
+    if(rec.bw==null && wk.bws.length<3){
+      c.appendChild(el("div","qlab","Bodyweight this morning"));
+      var lastBw=null, ks=Object.keys(state.days).filter(function(x){return x<sel;}).sort().reverse();
+      for(var i=0;i<ks.length;i++){ var b=state.days[ks[i]].bw; if(b!=null&&b!==""){ lastBw=+b; break; } }
+      var base=lastBw!=null?lastBw:80;
+      var row=el("div","chips");
+      [base-0.2,base,base+0.2].forEach(function(v){
+        var n=Math.round(v*10)/10;
+        row.appendChild(bigBtn(String(n),"chip2",function(){ day(sel).bw=n; touch(); render(); }));
+      });
+      row.appendChild(quiet("Didn't weigh",function(){ day(sel).bw=null; local.noBw=1; saveRun(); render(); }));
+      c.appendChild(row);
+    }
+
+    if(rec.p==null){
+      c.appendChild(el("div","qlab","Protein today, best guess"));
+      var pr=el("div","chips");
+      [120,140,160].forEach(function(v){
+        pr.appendChild(bigBtn(String(v),"chip2",function(){ day(sel).p=v; touch(); render(); }));
+      });
+      pr.appendChild(quiet("Didn't track",function(){ local.noP=1; saveRun(); render(); }));
+      c.appendChild(pr);
+    }
+
+    c.appendChild(el("div","qlab","Anything worth saying?"));
+    var tags=el("div","chips");
+    ["Slept badly","Rushed","Pain","Felt strong","Machine taken"].forEach(function(t){
+      var on=(rec.note||"").indexOf(t)>=0;
+      tags.appendChild(bigBtn(t,"chip2"+(on?" on":""),function(){
+        var r=day(sel), n=r.note||"";
+        r.note = n.indexOf(t)>=0 ? n.replace(t,"").replace(/\s*·\s*·\s*/g," · ").trim().replace(/^·\s*|\s*·$/g,"")
+                                 : (n?n+" · "+t:t);
+        touch(); render();
+      }));
+    });
+    c.appendChild(tags);
+    var ta=document.createElement("textarea");
+    ta.placeholder="Anything else."; ta.value=rec.note||"";
+    ta.addEventListener("input",function(){ day(sel).note=this.value; touch(); });
+    c.appendChild(ta);
+
+    c.appendChild(bigBtn("Finish","go",function(){
+      var r=day(sel); r.run=r.run||{}; r.run.en=Date.now();
+      r.warm = local.warmSkipped?0:1;
+      touch(); local.capturing=0; saveRun(); render(); window.scrollTo(0,0);
+    }));
+    return c;
+  }
+
+  function doneCard(order){
+    var c=el("div","card donecard");
+    var rec=peek(sel)||{};
+    c.appendChild(el("div","bigtitle",sessionOf(sel).name+" · complete"));
+    var mins=(rec.run&&rec.run.st&&rec.run.en)?Math.round((rec.run.en-rec.run.st)/60000):null;
+    c.appendChild(el("div","meta2",setCounts(sel).done+" sets"+(mins?" · "+mins+" minutes":"")));
+    order.forEach(function(ex){
+      var r=peekEx(sel,ex.id); if(!r) return;
+      var got=reps(r); if(!got.length) return;
+      c.appendChild(doneLine(ex));
+    });
+    var nx=nextSessionHint();
+    if(nx) c.appendChild(el("div","nextline",nx));
+    var row=el("div","cardfoot");
+    row.appendChild(quiet("See the week",function(){ setTab("week"); }));
+    row.appendChild(quiet("Change something",function(){ listMode=true; render(); }));
+    c.appendChild(row);
+    return c;
+  }
+
+  function nextSessionHint(){
+    for(var i=1;i<=7;i++){
+      var d=addDays(sel,i), s=sessionOf(d);
+      if(!s) continue;
+      var first=null; s.ex.forEach(function(e){ if(!first&&e.big) first=e; });
+      if(!first) return "Next — "+s.name+", "+(i===1?"tomorrow":pretty(d))+".";
+      var t=stopTarget(d,first,0), w=planned(d,first).w;
+      return "Next — "+s.name+", "+(i===1?"tomorrow":pretty(d))+". "+first.n+" "+(w!=null?w+" kg":"")+
+             (t!=null?", set 1 stops at "+t+".":".");
+    }
+    return null;
+  }
+
+  function doneLine(ex){
+    var rec=peekEx(sel,ex.id)||{}, got=reps(rec);
+    var drop=got.length>=2?got[0]-got[got.length-1]:0;
+    var bad=ex.big&&got.length>=2&&drop>3;
+    var l=el("button","line done"+(bad?" bad":""));
+    l.type="button";
+    l.appendChild(el("span","lmark",bad?"!":"✓"));
+    l.appendChild(el("span","lname",ex.n));
+    l.appendChild(el("span","lw",rec.w!=null?rec.w+" kg":""));
+    l.appendChild(el("span","lreps",got.join(" / ")));
+    var tag = rec.fin && got.length<ex.s ? got.length+" of "+ex.s+" sets"
+            : (got.length>=ex.s && got[got.length-1]>=ex.hi) ? "goes up"
+            : bad ? "dropping off" : (ex.big&&got.length>=2?"holding":"");
+    if(tag) l.appendChild(el("span","ltag"+(bad?" bad":""),tag));
+    l.addEventListener("click",function(){ listMode=true; render(); });
+    return l;
+  }
+  function pendingLine(ex){
+    var pl=planned(sel,ex);
+    var l=el("button","line pend"); l.type="button";
+    l.appendChild(el("span","lmark",""));
+    l.appendChild(el("span","lname",ex.n));
+    l.appendChild(el("span","lw",ex.bw?"bodyweight":(pl.w!=null?pl.w+" kg":"set it")));
+    l.appendChild(el("span","ltag",ex.s+" × "+ex.lo+"–"+ex.hi));
+    l.addEventListener("click",function(){
+      var r=day(sel), ord=sessionOrder(sel).map(function(e){return e.id;});
+      ord.splice(ord.indexOf(ex.id),1); 
+      var cur=cursor(sel);
+      ord.splice(cur?ord.indexOf(cur.ex.id):0,0,ex.id);
+      r.ord=ord; touch(); clearRest(false); render();
+    });
+    return l;
+  }
+  function tickLine(txt,tag){
+    var l=el("div","line done");
+    l.appendChild(el("span","lmark",""));
+    l.appendChild(el("span","lname",txt));
+    if(tag) l.appendChild(el("span","ltag",tag));
+    return l;
   }
 
   /* ---------------- week view ---------------- */
@@ -784,6 +1515,7 @@
     var wasToday=(sel===today);
     today=t;
     if(wasToday) sel = t<BLOCK ? BLOCK : t;
+    loadLocal2(); listMode=false;
     if(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
     render();
   }
@@ -863,6 +1595,7 @@
 
   /* ---------------- boot ---------------- */
   loadLocal();
+  loadLocal2();
   render();
   syncIdle();
 
