@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 9;
+  var BUILD = 10;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -813,6 +813,7 @@
     return !listMode && sel===effToday() && inBlock(sel) && !!sessionOf(sel);
   }
   function chrome(show){
+    document.getElementById("exlist").classList.toggle("runcol",!show);
     ["weeknav","daystrip"].forEach(function(id){
       var e=document.getElementById(id); if(e) e.classList.toggle("hidden",!show);
     });
@@ -861,6 +862,17 @@
       box.appendChild(warmCard(ramp));
     else if(ramp) box.appendChild(tickLine(local.warmSkipped?"– Warm-up skipped":"✓ Warm-up", ""));
 
+    if(local.ended){
+      order.forEach(function(ex){
+        if(skipped(sel,ex)){ box.appendChild(tickLine("– "+ex.n,"skipped")); return; }
+        if(reps(peekEx(sel,ex.id)).length) box.appendChild(doneLine(ex));
+      });
+      box.appendChild(finishCard(order,cnt));
+      var back=quiet("Back to the session",function(){ local.ended=0; saveRun(); render(); });
+      box.appendChild(back);
+      return;
+    }
+
     /* the column */
     order.forEach(function(ex,j){
       if(skipped(sel,ex)){ box.appendChild(tickLine("– "+ex.n,"skipped")); return; }
@@ -880,6 +892,22 @@
     }
 
     if(!cur) box.appendChild(finishCard(order,cnt));
+
+    if(cur){
+      var endRow=el("div","endrow");
+      if(cnt.done===0){
+        endRow.appendChild(quiet("Cancel — I'm not training",function(){
+          local.started=null; local.ended=0; local.warmTicks=[]; local.warmSkipped=0;
+          clearRest(false); saveRun();
+          var r=day(sel); if(r.run) delete r.run.st; touch(); render();
+        }));
+      } else {
+        endRow.appendChild(quiet("End session here",function(){
+          local.ended=1; clearRest(false); saveRun(); render(); window.scrollTo(0,0);
+        }));
+      }
+      box.appendChild(endRow);
+    }
   }
 
   function runHeader(sess,cnt){
@@ -1205,7 +1233,7 @@
     c.appendChild(bigBtn("Finish","go",function(){
       var r=day(sel); r.run=r.run||{}; r.run.en=Date.now();
       r.warm = local.warmSkipped?0:1;
-      touch(); local.capturing=0; saveRun(); render(); window.scrollTo(0,0);
+      touch(); local.capturing=0; local.ended=0; saveRun(); render(); window.scrollTo(0,0);
     }));
     return c;
   }
