@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 29;
+  var BUILD = 30;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -205,6 +205,12 @@
     if(!sb || !user || !navigator.onLine || inFlight) { syncIdle(); return; }
     var days = Object.keys(state.pending);
     if(!days.length){ syncIdle(); return; }
+    days = days.filter(function(d){
+      if(state.days[d]) return true;
+      delete state.pending[d];            // a key with no day would throw and kill sync forever
+      return false;
+    });
+    if(!days.length){ saveLocal(); syncIdle(); return; }
     var rows = days.map(function(d){
       return { user_id:user.id, day:d, payload:state.days[d],
                updated_at:new Date(state.days[d].updatedAt||Date.now()).toISOString() };
@@ -249,7 +255,23 @@
     if(!inBlock(d)) return null;
     var r = peek(d);
     if(r && r.k) return r.k;
-    return BY_DOW[parse(d).getDay()] || null;
+    var byDow = BY_DOW[parse(d).getDay()];
+    if(byDow) return byDow;
+    /* Reps logged on a day with no session key would otherwise be visible only as
+       a dot on the calendar: absent from the day view, the week and the paste,
+       and impossible to delete. Infer the session from what was actually done. */
+    if(r && r.ex){
+      var ids=Object.keys(r.ex).filter(function(id){ return reps(r.ex[id]).length; });
+      if(ids.length){
+        var best=null, bestN=0;
+        ORDER.forEach(function(k){
+          var n=PLAN[k].ex.filter(function(e){ return ids.indexOf(e.id)>=0; }).length;
+          if(n>bestN){ bestN=n; best=k; }
+        });
+        if(best) return best;
+      }
+    }
+    return null;
   }
   function sessionOf(d){ var k=sessionKey(d); return k?PLAN[k]:null; }
 
@@ -273,6 +295,12 @@
      weekStats(), the finish card and the exercise card, with three different
      answers appearing on the same screen. */
   function heldBack(rec){ return !((rec && rec.g) || []).some(Boolean); }
+  /* Which set was actually marked — the copy used to say "set 1" regardless. */
+  function grindAt(rec){
+    var g=(rec && rec.g) || [];
+    for(var i=0;i<g.length;i++) if(g[i]) return i+1;
+    return null;
+  }
   function counts(ex,rec){ return !!(ex && ex.big) && reps(rec).length>=2; }
   function calibOK(ex,rec){
     var got=reps(rec);
@@ -557,12 +585,14 @@
   function closePad(){ document.getElementById("pad").classList.remove("on"); padCtx=null; }
   function setRep(v){
     if(!padCtx) return;
+    var d=padCtx.d||sel;
+    if(d!==sel){ closePad(); return; }      // the day moved under the sheet
     var ex=padCtx.ex, i=padCtx.i;
-    var rec=entry(sel,ex.id);
+    var rec=entry(d,ex.id);
     if(rec.w==null) rec.w = planned(sel,ex).w;        /* commit the shown load on first log */
     rec.r=rec.r||[]; rec.r[i]=v;
     rec.wr=rec.wr||[]; rec.wr[i]=rec.w;
-    touch(); closePad(); renderDay(); startRest(ex);
+    touch(d); closePad(); renderDay(); startRest(ex);
   }
   document.getElementById("padclose").addEventListener("click",closePad);
   document.getElementById("padclear").addEventListener("click",function(){
@@ -651,13 +681,20 @@
       /* A correction made three weeks ago is a note on a session that no longer exists. */
       var gap = gapSince(d, ex.id, prev);
       if(gap!=null && gap>=16) return ex.hi-2;
-      if(prev.e.nt!=null) return clamp(prev.e.nt, ex.lo, ex.hi+4);
+      if(prev.e.nt!=null){
+        var nt=clamp(prev.e.nt, ex.lo, ex.hi+4);
+        if((prev.e.q||[])[0]===0 || (prev.e.g||[])[0])
+          nt=Math.max(1, Math.min(nt, prev.got[0]-1));
+        return nt;
+      }
       var q0=(prev.e.q||[])[0];
       var est=estFailure(prev.got[0], q0);
       var t=est-2;
       var pw=planned(d,ex).w, ow=prev.e.w!=null?prev.e.w:ex.w;
       if(pw!=null && ow!=null && pw>ow) t-=1;
-      t=clamp(clamp(t, ex.lo, ex.hi+4), prev.got[0]-2, prev.got[0]+2);
+      t=clamp(t, prev.got[0]-2, prev.got[0]+2);
+      t=clamp(t, ex.lo, ex.hi+4);            // the range bounds the derived number
+      // …but never at or above what just failed, even if that lands below the range.
       if(q0===0 || (prev.e.g||[])[0]) t=Math.max(1, Math.min(t, prev.got[0]-1));
       return t;
     }
@@ -726,7 +763,7 @@
     }
     if(short) return { c:2, n:n, secs:worst, any:anyRest,
       line:"You cut the rest between sets. That is cause two. Take the full "+(restFor(ex)/60===3?"three minutes":"ninety seconds")+" before you blame the weight." };
-    return { c:3, n:n };
+    return { c:3, n:n, any:anyRest };
   }
 
 
@@ -734,7 +771,8 @@
   function allSessions(){
     return Object.keys(state.days).filter(function(d){
       var r=state.days[d];
-      return r && r.ex && Object.keys(r.ex).some(function(k){ return reps(r.ex[k]).length; });
+      if(!(r && r.ex && Object.keys(r.ex).some(function(k){ return reps(r.ex[k]).length; }))) return false;
+      return !!sessionSummary(d);      // never count a day the list cannot render
     }).sort().reverse();
   }
 
@@ -765,6 +803,12 @@
   function trashSets(t){
     if(!t||!t.ex) return 0;
     return Object.keys(t.ex).reduce(function(n,k){ return n+reps(t.ex[k]).length; },0);
+  }
+  /* Every set on the day, whatever session it belongs to — the delete label used
+     to count only the current key and promise "0 sets" before restoring six. */
+  function daySets(d){
+    var r=peek(d); if(!r||!r.ex) return 0;
+    return Object.keys(r.ex).reduce(function(n,k){ return n+reps(r.ex[k]).length; },0);
   }
   function undoDelete(d){
     var r=state.days[d], t=r&&r.trash; if(!t) return;
@@ -805,7 +849,7 @@
       var keep=el("button","quietbtn","Keep it"); keep.type="button";
       keep.addEventListener("click",function(){ pendingDel=null; render(); });
       var del=el("button","quietbtn danger",
-        "Delete "+(sum?sum.sets:"")+" sets — undoable today"); del.type="button";
+        "Delete "+daySets(d)+" sets — undoable today"); del.type="button";
       del.addEventListener("click",function(){
         if(Date.now()-armedAt < 700) return;      // ignore a double-tap arriving as one gesture
         deleteSession(d);
@@ -899,7 +943,7 @@
       var ds=addDays(m,i), dt=parse(ds);
       var b=document.createElement("button");
       b.className="day "+(sessionKey(ds)?"train":"rest")+" "+dayMark(ds)+
-                  (ds===effToday()?" today":"")+(inBlock(ds)?"":" out");
+                  (ds===today?" today":"")+(inBlock(ds)?"":" out");
       if(ds===sel) b.setAttribute("aria-current","date");
       b.innerHTML='<span class="dow">'+DOW[dt.getDay()]+'</span><span class="dnum">'+dt.getDate()+
                   '</span><span class="dot"></span>';
@@ -922,10 +966,7 @@
       (!inBlock(sel) ? "Starts "+shortD(ORIGIN) : "Week "+wn) + " · " + pretty(sel);
 
     /* header context */
-    var done=0, total=0;
-    if(sess) sess.ex.forEach(function(ex){
-      total+=ex.s; var e=peekEx(sel,ex.id); done+=reps(e).length;
-    });
+    var cnts=setCounts(sel), done=cnts.done, total=cnts.total;
     document.getElementById("hctxt").textContent = sess ? sess.name : (inBlock(sel)?"Rest day":"Workout");
     document.getElementById("hctxs").textContent = sess
       ? (done>=total ? "Session complete · "+total+" sets" : done+" / "+total+" sets · "+pretty(sel))
@@ -1071,7 +1112,7 @@
       else if(ex.big && got.length>=2 && drop>3){
         var grind=(rec.g||[]).some(Boolean);
         cue = grind
-          ? "Set 1 went to failure when it should have stopped two short. That is cause 1 — not the weight. Same load next time."
+          ? "Set "+(grindAt(rec)||1)+" went to failure when it should have stopped two short. That is cause 1 — not the weight. Same load next time."
           : "More than 3 reps of drop-off. In order: did set 1 go to failure anyway, was rest actually 3 minutes, and only then is it the weight.";
       }
       if(cue) card.appendChild(el("div","cue",cue));
@@ -1083,7 +1124,7 @@
       var v = rec && rec.r ? rec.r[i] : null;
       var b=el("button","slotbtn"+(v==null||v===""?" empty":""), (v==null||v==="")?"–":String(v));
       b.type="button";
-      if(rec && rec.w==null && !ex.bw && (v==null||v==="")) b.disabled=true;
+      if(!ex.bw && (!rec || rec.w==null) && (v==null||v==="")) b.disabled=true;
       b.setAttribute("aria-label", ex.n+" set "+(i+1)+(v==null?", not logged":", "+v+" reps"));
       b.addEventListener("click",function(){ openPad(ex,i); });
       var toFail = !ex.big || i===ex.s-1;
@@ -1168,7 +1209,10 @@
       if(skipped(sel,ex)){ box.appendChild(skippedLine(ex)); return; }
       if(exDone(sel,ex)){ box.appendChild(doneLine(ex)); return; }
       if(cur && ex.id===cur.ex.id){
-        if(local.dropFor===ex.id){ box.appendChild(dropCard(ex)); return; }
+        if(local.dropFor===ex.id){
+          var dcard=dropCard(ex);
+          if(dcard){ box.appendChild(dcard); return; }
+        }
         box.appendChild(openCard(ex,cur.i));
         return;
       }
@@ -1178,7 +1222,7 @@
     /* the drop-off card can belong to a finished exercise */
     if(local.dropFor && (!cur || cur.ex.id!==local.dropFor)){
       var dex=null; order.forEach(function(e){ if(e.id===local.dropFor) dex=e; });
-      if(dex) box.insertBefore(dropCard(dex), box.children[cur?2:1]||null);
+      if(dex){ var dc2=dropCard(dex); if(dc2) box.insertBefore(dc2, box.children[cur?2:1]||null); }
     }
 
     if(!cur) box.appendChild(finishCard(order,cnt));
@@ -1317,7 +1361,7 @@
 
     /* weight row */
     var wr=el("div","wrow2");
-    if(ex.bw){ wr.appendChild(el("div","wbig","Bodyweight")); }
+    if(ex.bw && pl.w==null){ wr.appendChild(el("div","wbig","Bodyweight")); }
     else if(pl.w==null){
       /* Nothing to step from. A 6'4" leg extension is twenty taps away from 10kg,
          and the pin stack in front of him is showing the real number. Type it. */
@@ -1437,6 +1481,12 @@
       keep.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       nrow.appendChild(keep);
       c.appendChild(nrow);
+    } else if(pl.ease){
+      var ez=el("div","bumped");
+      ez.appendChild(el("span","", pl.ease+" days off · eased "+pl.from+" → "+pl.w+" kg"));
+      var keepHeavy=el("button",null,"Use "+pl.from);
+      keepHeavy.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
+      ez.appendChild(keepHeavy); c.appendChild(ez);
     } else if(pl.from!=null){
       var bump=el("div","bumped");
       bump.appendChild(el("span","","Earned it "+shortD(pl.on)+" · "+pl.from+" → "+pl.w+" kg"));
@@ -1497,6 +1547,8 @@
     if(i===0 && !lastDone(sel,ex.id))
       return (ex.bw ? "First time doing these here. " : "First time at this weight. ")+
              target+" comes from the range, not from how you feel.";
+    if(pl.needNotch) return "Set the new weight above, then this number applies to it.";
+    if(pl.ease) return "Eased after "+pl.ease+" days off. Earn it back.";
     if(pl.from!=null) return "New weight. One off the top.";
     var q=(rec.q||[])[i-1];
     if(q===0) return "Earlier than felt right last set. That is the point.";
@@ -1536,7 +1588,7 @@
     var target=stopTarget(sel,ex,i);
     if(q===0 && i===0) return "Set 1 went to failure. That is the thing this whole plan exists to fix.";
     if(q===0) return "Failure again. You are spending the last set to buy this one. Next set, count it out and rack it.";
-    if(target!=null && v>=target+3 && q!==0) return v+" when the number was "+target+", and still had something left. The load is light — it goes up next session.";
+    if(target!=null && v>=target+3 && q!==0) return v+" when the number was "+target+", and still had something left. If the last set lands at the top of the range too, it goes up.";
     if(target!=null && v<=target-2) return v+" against a target of "+target+". In order: did set 1 go to failure anyway, was the rest actually full, and only then is it the weight.";
     if(q===3) return "More than two left at "+v+"? Then that was not the set. Next one, go further and stop there.";
     if(q===2) return v+" with two left. Exactly the set the plan is built on. Do that again.";
@@ -1546,7 +1598,8 @@
   function mmss(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
 
   function dropCard(ex){
-    var dc=dropCause(sel,ex); if(!dc){ local.dropFor=null; saveRun(); return el("div",""); }
+    var dc=dropCause(sel,ex);
+    if(!dc){ local.dropFor=null; saveRun(); return null; }
     var got=reps(peekEx(sel,ex.id));
     var c=el("div","card drop");
     c.appendChild(el("div","dropnums",got.join(" · ")));
@@ -1567,8 +1620,9 @@
         : "I never saw a full rest between those sets. Cause two comes before cause three — the weight is the last thing to blame."));
       c.appendChild(bigBtn("Understood — the full rest next time","",dismiss));
     } else {
-      c.appendChild(el("div","dropline",
-        "Effort held, rest timed, and it still fell off. One exercise is noise. Run it again exactly like this."));
+      c.appendChild(el("div","dropline", dc.any
+        ? "Effort held, rest timed, and it still fell off. One exercise is noise. Run it again exactly like this."
+        : "Effort held and it still fell off — though I never timed a rest here. One exercise is noise. Run it again, and let the timer run."));
       c.appendChild(bigBtn("Understood — same weight next time","",dismiss));
     }
     return c;
@@ -1636,8 +1690,10 @@
 
   function oneThing(order){
     for(var j=0;j<order.length;j++){
-      var ex=order[j], rec=peekEx(sel,ex.id); if(!rec||!ex.big) continue;
-      if((rec.q||[])[0]===0) return ex.n+" set 1: stop at "+Math.max(ex.lo,(rec.r||[])[0]-2)+", whatever it feels like.";
+      var ex=order[j], rec=peekEx(sel,ex.id); if(!counts(ex,rec)) continue;
+      var gi=grindAt(rec);
+      if(gi!=null) return ex.n+" set "+gi+": stop at "+
+        Math.max(1,((rec.r||[])[gi-1]||ex.lo)-2)+", whatever it feels like.";
     }
     for(var k=0;k<order.length;k++){
       var e2=order[k], r2=peekEx(sel,e2.id); if(!r2||!e2.big) continue;
@@ -1656,11 +1712,15 @@
     c.appendChild(el("div","qlab","Anything worth saying?"));
     var tags=el("div","chips");
     ["Slept badly","Rushed","Pain","Felt strong","Machine taken"].forEach(function(t){
-      var on=(rec.note||"").indexOf(t)>=0;
+      var on=(rec.note||"").split(" · ").map(function(x){ return x.trim(); }).indexOf(t)>=0;
       tags.appendChild(bigBtn(t,"chip2"+(on?" on":""),function(){
-        var r=day(sel), n=r.note||"";
-        r.note = n.indexOf(t)>=0 ? n.replace(t,"").replace(/\s*·\s*·\s*/g," · ").trim().replace(/^·\s*|\s*·$/g,"")
-                                 : (n?n+" · "+t:t);
+        /* Only ever add or remove a whole " · "-delimited part, never a blind
+           substring — "Pain in the left knee" must survive tapping "Pain". */
+        var r=day(sel);
+        var parts=(r.note||"").split(" · ").map(function(x){ return x.trim(); }).filter(Boolean);
+        var at=parts.indexOf(t);
+        if(at>=0) parts.splice(at,1); else parts.push(t);
+        r.note=parts.join(" · ");
         touch(); render();
       }));
     });
@@ -1790,8 +1850,11 @@
         if(earnsBump(ex,e))
           ups.push({n:ex.n,id:ex.id,from:e.w,step:ex.step,last:got[got.length-1]});
         if(counts(ex,e) && !calibOK(ex,e))
-          watch.push({n:ex.n,reps:got,grind:!heldBack(e)});
-        lines.push({d:ds,n:ex.n,w:e.w,reps:got,g:e.g||[]});
+          watch.push({n:ex.n,reps:got,grind:!heldBack(e),at:grindAt(e)});
+        var gAligned=[], rr=e.r||[];
+        for(var ii=0;ii<rr.length;ii++)
+          if(rr[ii]!=null && rr[ii]!=="") gAligned.push(!!(e.g||[])[ii]);
+        lines.push({d:ds,n:ex.n,w:e.w,reps:got,g:gAligned});
       });
       if(any) done++;
     }
@@ -1871,7 +1934,7 @@
         var r=el("div","sessline");
         r.appendChild(el("span","reps", x.reps.join(" ")));
         r.appendChild(el("span","exlab", x.n+" — "+(x.grind
-          ? "you marked set 1 a grind. That is cause 1, not the weight."
+          ? "you marked set "+(x.at||1)+" a grind. That is cause 1, not the weight."
           : "check rest first, then whether set 1 went to failure.")));
         w.appendChild(r);
       });
@@ -2019,8 +2082,14 @@
         state.days[d]=incoming; state.pending[d]=1; updated++;
       } else same++;
     });
-    saveLocal(); push();
+    saveLocal();
     pendingImport=null;
+    if(fatal){
+      btn.textContent="Could not save the restore — storage is full";
+      announce(fatal);
+      return;
+    }
+    push();
     btn.textContent=added+" added · "+updated+" updated · "+same+" already current";
     announce("Restore complete. "+added+" added, "+updated+" updated.");
     setTimeout(function(){ btn.textContent="Restore from a file"; render(); },3500);
@@ -2175,7 +2244,7 @@
       a+=" "+parse(m).getFullYear(); b+=" "+parse(addDays(m,6)).getFullYear();
     }
     var t=document.getElementById("wtoday");
-    t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===effToday()?" · today":"");
+    t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===today?" · today":"");
     t.disabled = (sel===effToday());
     document.getElementById("wprev").disabled = (mondayOf(addDays(sel,-7)) < mondayOf(HORIZON));
     document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > mondayOf(effToday()));

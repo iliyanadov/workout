@@ -22,6 +22,10 @@ then asserts on rendered output and on `localStorage`.
 | `week-plan` | calibration, goes-up, watch, history, the weekly paste, the Plan tab |
 | `regressions` | one test per defect found in the three audit rounds, named by the build that fixed it |
 | `copy` | text that must be true rather than merely nice |
+| `round4` | defects found by an agent pass that enumerated 1,115 candidate cases against the code |
+
+The runner pins `TZ=Europe/London` before loading jsdom. The DST cases mean nothing
+without it.
 
 ## What this cannot cover
 

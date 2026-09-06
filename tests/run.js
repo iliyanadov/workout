@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /* Discovers suites/*.test.js, runs every case, reports pass/fail, exits non-zero
    on any failure so this can gate a deploy. */
+/* Pin the timezone before anything loads jsdom. The DST cases are written for
+   Europe/London, and without this the suite quietly means something different
+   on another machine. */
+if (!process.env.TZ) { process.env.TZ = "Europe/London"; }
+
 const fs = require("fs");
 const path = require("path");
 const { Fail } = require("./assert.js");

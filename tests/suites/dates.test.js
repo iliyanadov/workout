@@ -4,6 +4,46 @@ const { eq, ok, no, has, hasNot } = require("../assert.js");
 module.exports = (test) => {
   const b = (o) => boot(o);
 
+  test("the timezone is pinned, so DST cases mean the same on every machine", () => {
+    eq(process.env.TZ, "Europe/London");
+    const a = b({ now: "2026-10-26T09:00:00" });
+    eq(new a.w.Date("2026-10-26T00:00:00").getTimezoneOffset(), 0, "after the fall-back: GMT");
+    eq(new a.w.Date("2026-10-24T00:00:00").getTimezoneOffset(), -60, "before it: BST");
+  });
+
+  test("the day strip crosses the 25-hour day without repeating or skipping", () => {
+    const a = b({ now: "2026-10-21T09:00:00" });
+    a.listMode();
+    eq(a.all("#daystrip .dnum").map(a.txt), ["19","20","21","22","23","24","25"]);
+  });
+
+  test("the day strip crosses the spring-forward without skipping", () => {
+    const a = b({ now: "2027-03-24T09:00:00" });
+    a.listMode();
+    eq(a.all("#daystrip .dnum").map(a.txt), ["22","23","24","25","26","27","28"]);
+  });
+
+  test("the day strip crosses a month, a year and the leap day", () => {
+    const sept = b({ now: "2026-09-30T09:00:00" });
+    sept.listMode();
+    eq(sept.all("#daystrip .dnum").map(sept.txt), ["28","29","30","1","2","3","4"]);
+    const ny = b({ now: "2026-12-30T09:00:00" });
+    ny.listMode();
+    eq(ny.all("#daystrip .dnum").map(ny.txt), ["28","29","30","31","1","2","3"]);
+    const leap = b({ now: "2028-03-01T09:00:00" });
+    leap.listMode();
+    eq(leap.all("#daystrip .dnum").map(leap.txt), ["28","29","1","2","3","4","5"]);
+  });
+
+  test("week numbering is constant across every day of one week", () => {
+    for (const d of ["2026-10-26","2026-10-27","2026-10-28","2026-10-29",
+                     "2026-10-30","2026-10-31","2026-11-01"]) {
+      const a = b({ now: d + "T09:00:00" });
+      const label = a.one(".card.start") ? a.txt(a.one("#wtoday")) : a.txt(a.one("#wtoday"));
+      has(label, "Week 8", d);
+    }
+  });
+
   test("app anchors on the block's first day before the block starts", () => {
     const a = b({ now: "2026-09-05T09:00:00" });
     has(a.txt(a.one("#wtoday")), "Week 1");
@@ -18,7 +58,7 @@ module.exports = (test) => {
 
   test("the day strip renders all seven days of the week", () => {
     const a = b({ now: "2026-09-07T09:00:00", days: { "2026-09-07": { ex: {}, updatedAt: 1 } } });
-    a.tap(".card.start .quietbtn", "Log it yourself");
+    a.listMode();
     eq(a.all("#daystrip .day").length, 7);
     eq(a.all("#daystrip .day .dow").map(a.txt), ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]);
   });
@@ -52,14 +92,14 @@ module.exports = (test) => {
 
   test("cannot navigate back before the block, or forward past today", () => {
     const a = b({ now: "2026-09-07T09:00:00" });
-    a.tap(".card.start .quietbtn", "Log it yourself");
+    a.listMode();
     ok(a.one("#wprev").disabled, "wprev must be disabled in week 1");
     ok(a.one("#wnext").disabled, "wnext must be disabled on the anchored week");
   });
 
   test("from a later week you can page back but not past the horizon", () => {
     const a = b({ now: "2026-09-21T09:00:00" });
-    a.tap(".card.start .quietbtn", "Log it yourself");
+    a.listMode();
     no(a.one("#wprev").disabled, "wprev should be enabled in week 3");
     a.tap("#wprev"); a.tap("#wprev");
     has(a.txt(a.one("#wtoday")), "Week 1");

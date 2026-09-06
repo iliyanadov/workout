@@ -88,6 +88,25 @@ module.exports = (test) => {
     eq(flunk.txt(flunk.one("#weekbody .bignum")), "0 / 1");
   });
 
+  test("the target never lands above the top of the range, even from a restored file", () => {
+    // 20 reps on a 6-10 lift is reachable via Restore from a file
+    const a = openOn("2026-09-14", hackDay([20,18,16,15],[2,2,2,0]));
+    const n = parseInt(a.hero().replace(/\D/g, ""), 10);
+    ok(n <= 14, `target came back ${n}, above hi+4`);
+  });
+
+  test("failing at the bottom of the range still aims below it", () => {
+    const a = openOn("2026-09-14", hackDay([6,4,4,4],[0,2,2,0]));
+    const n = parseInt(a.hero().replace(/\D/g, ""), 10);
+    ok(n < 6, `failed at 6, target came back ${n}`);
+  });
+
+  test("a stored commitment cannot sit at or above what failed either", () => {
+    const a = openOn("2026-09-14", hackDay([6,4,4,4],[0,2,2,0],{ nt: 9 }));
+    const n = parseInt(a.hero().replace(/\D/g, ""), 10);
+    ok(n < 6, `commitment produced ${n}`);
+  });
+
   test("a layoff eases the load instead of bumping it", () => {
     const soon = openOn("2026-09-14", hackDay([10,10,10,10],[2,2,2,0]));
     const late = openOn("2026-09-28", hackDay([10,10,10,10],[2,2,2,0]));

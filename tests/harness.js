@@ -99,6 +99,13 @@ function boot({ now = "2026-09-07T09:00:00", days = null, run = null, online = f
       }
       return api;
     },
+    /* Show the week strip and the exercise list. On a rest day, or a day already
+       finished, there is no start card to leave. */
+    listMode() {
+      const link = api.all(".card.start .quietbtn").find(b => /Log it yourself/.test(api.txt(b)));
+      if (link) api.tap(link);
+      return api;
+    },
     openName: () => api.txt(api.one(".card.open .cardname")),
     hero: () => api.txt(api.one(".card.open .hero")),
     load: () => (api.one(".card.open .winput") || {}).value,
