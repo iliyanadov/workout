@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 26;
+  var BUILD = 27;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1148,7 +1148,7 @@
 
     /* warm-up */
     var ramp=rampFor(sel);
-    if(ramp && !local.warmSkipped && (local.warmTicks||[]).filter(Boolean).length < 3)
+    if(ramp && !local.warmSkipped && (local.warmTicks||[]).filter(Boolean).length < 2)
       box.appendChild(warmCard(ramp));
     else if(ramp) box.appendChild(tickLine(local.warmSkipped?"– Warm-up skipped":"✓ Warm-up", ""));
 
@@ -1271,11 +1271,12 @@
 
   function warmCard(ramp){
     var c=el("div","card warm");
-    c.appendChild(el("div","kicker","Warm up · about 4 min"));
+    c.appendChild(el("div","kicker","Warm up · two sets"));
     c.appendChild(el("div","warnline","Without this, set 1 is the warm-up — and set 1 is the set you keep taking to failure."));
     var ticks=local.warmTicks||[];
-    var rows=[{t:"2 minutes. Bike, walk, stairs.",w:null}]
-      .concat(ramp.rows.map(function(r){ return {t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps, w:r.why}; }));
+    var rows=ramp.rows.map(function(r){
+      return {t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps, w:r.why};
+    });
     rows.forEach(function(row,i){
       var r=el("div","warmrow"+(ticks[i]?" on":""));
       var left=el("div","warmtxt");
