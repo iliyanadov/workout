@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 27;
+  var BUILD = 28;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1036,9 +1036,9 @@
       wi.value = n==null?"":n;
       touch(); renderDay();
     }
-    var stepL=stepOf(sel,ex);
-    minus.addEventListener("click",function(){ if(pl.w!=null) setW(Math.max(0,pl.w-stepL)); });
-    plus.addEventListener("click",function(){ setW((pl.w==null?10:pl.w)+(pl.w==null?0:stepL)); });
+    var NUDGE=0.1;
+    minus.addEventListener("click",function(){ if(pl.w!=null) setW(Math.max(0,pl.w-NUDGE)); });
+    plus.addEventListener("click",function(){ setW((pl.w==null?10:pl.w)+(pl.w==null?0:NUDGE)); });
     /* commit on input, not blur — iOS never fires change on a digits-only keypad */
     wi.addEventListener("input",function(){
       var n=parseFloat(wi.value);
@@ -1363,7 +1363,7 @@
       val.appendChild(wIn); val.appendChild(el("span","wunit","kg"));
       var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
       // From nothing, land on a usable plate rather than crawling up in 2.5s.
-      var stepG=stepOf(sel,ex);
+      var NUDGE=0.1;
       /* Read the live value, not the one captured when this card rendered —
          otherwise a typed weight is silently stepped from the stale number. */
       function curW(){
@@ -1372,10 +1372,10 @@
       }
       minus.addEventListener("click",function(){
         var c0=curW(); if(c0==null) return;
-        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((c0-stepG)*10)/10); touch(); render(); });
+        var r=entry(sel,ex.id); r.w=Math.max(0,Math.round((c0-NUDGE)*10)/10); touch(); render(); });
       plus.addEventListener("click",function(){
         var c0=curW(), r=entry(sel,ex.id);
-        r.w = c0==null ? 10 : Math.round((c0+stepG)*10)/10;
+        r.w = c0==null ? 10 : Math.round((c0+NUDGE)*10)/10;
         touch(); render(); });
       wr.appendChild(minus); wr.appendChild(val); wr.appendChild(plus);
     }
