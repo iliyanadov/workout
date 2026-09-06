@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 28;
+  var BUILD = 29;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -1233,7 +1233,18 @@
     if(!warn && sel < addDays(HORIZON,21)) warn="Weeks one to three are calibration. The weights are deliberately light. Do not fix that.";
     if(warn) c.appendChild(el("div","warnline",warn));
 
-    c.appendChild(el("div","rule","Every set but the last stops with two reps still in you. The last set goes to failure. The app tells you the number."));
+    /* One rule for the whole session was wrong for most of the work: Lower A has
+       one big lift and four exercises that go to failure on every set. Say what
+       actually applies today, in the same words the rule strip uses. */
+    var anyBig=order.some(function(e){ return e.big; });
+    var anyAcc=order.some(function(e){ return !e.big; });
+    var rule=el("div","rule");
+    rule.innerHTML = !anyBig
+      ? "<b>Every set to failure today.</b> All accessories — no reason to hold back."
+      : anyAcc
+        ? "Big lifts: every set but the last stops with <b>two reps still in you</b>, last set to failure.<br>Everything else: <b>every set to failure</b>.<br>The app tells you which is which, and the number."
+        : "Every set but the last stops with <b>two reps still in you</b>. The last set goes to failure. The app tells you the number.";
+    c.appendChild(rule);
 
     if(sel!==today){
       var n=daysAway(sel);
@@ -1386,8 +1397,14 @@
     var sl=el("div","slots2");
     for(var k=0;k<ex.s;k++){
       var v=(rec.r||[])[k];
-      var b=el("span","s2"+(v==null||v===""?" e":"")+((rec.q||[])[k]===0?" g":""),
+      /* Tappable: a mis-tapped rep must be correctable without leaving the
+         guided session. */
+      var b=el("button","s2"+(v==null||v===""?" e":"")+((rec.q||[])[k]===0?" g":""),
                (v==null||v==="")?"–":String(v));
+      b.type="button";
+      b.setAttribute("aria-label", ex.n+" set "+(k+1)+
+        (v==null||v===""?", not logged":", "+v+" reps — tap to change"));
+      (function(idx){ b.addEventListener("click",function(){ openLog(ex,idx); }); })(k);
       sl.appendChild(b);
     }
     c.appendChild(sl);
@@ -1450,7 +1467,9 @@
       c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · mixed loads · "+
         reps(prev.e).map(function(v,ix){ var lw=setW(prev.e,ix); return v+(lw!=null?"@"+lw:""); }).join(" / ")));
     else if(prev)
-      c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":"bodyweight")+" · "+prev.got.join(" / ")));
+      c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+
+        (prev.e.w!=null ? prev.e.w+" kg" : (ex.bw?"bodyweight":"weight not recorded"))+
+        " · "+prev.got.join(" / ")));
 
     /* rest panel, or the log button */
     if(restShown() && local.restExId===ex.id) c.appendChild(restPanel(ex,i));

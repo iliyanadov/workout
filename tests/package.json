@@ -1,0 +1,8 @@
+{
+  "name": "workout-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Test suite for the Two In Reserve training log.",
+  "scripts": { "test": "node run.js" },
+  "dependencies": { "jsdom": "^29.1.1" }
+}
