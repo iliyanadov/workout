@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 32;
+  var BUILD = 33;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -636,6 +636,7 @@
     catch(e){ local = { d:effToday() }; }
     local.warmTicks = local.warmTicks || [];
     local.resetArmed = 0;                  // never resume a half-armed destructive tap
+    if(local.focus==null) local.focus=null;
   }
   function saveRun(){ try{ localStorage.setItem(RUNK, JSON.stringify(local)); }catch(e){} }
 
@@ -920,6 +921,7 @@
       rec.g=rec.g||[]; rec.g[i]=(q===0 && isTargetSet(ex,i)); }
     touch(d);
     closePad();
+    if(local.focus===ex.id && exDone(d,ex)){ local.focus=null; saveRun(); }
     if(exDone(d,ex)){
       var dc=dropCause(d,ex);
       if(dc){ local.dropFor=ex.id; saveRun(); render(); return; }
@@ -1166,6 +1168,24 @@
     var sess=sessionOf(sel), order=sessionOrder(sel), rec=peek(sel)||{};
     var cur=cursor(sel), cnt=setCounts(sel);
 
+    /* A focus is "I am looking at this one" — device-local, never written to the
+       day, and dropped the moment it stops making sense. */
+    var focusEx=null;
+    if(local.focus){
+      order.forEach(function(e){ if(e.id===local.focus) focusEx=e; });
+      if(!focusEx || skipped(sel,focusEx)){ local.focus=null; focusEx=null; saveRun(); }
+    }
+    var openEx = focusEx || (cur && cur.ex);
+    var openIdx = 0;
+    if(openEx){
+      var orec=peekEx(sel,openEx.id);
+      openIdx=openEx.s-1;
+      for(var oi=0;oi<openEx.s;oi++){
+        var ov=orec&&orec.r?orec.r[oi]:null;
+        if(ov==null||ov===""){ openIdx=oi; break; }
+      }
+    }
+
     document.getElementById("hctxt").textContent=sess.name;
     document.getElementById("hctxs").textContent =
       rec.run&&rec.run.en ? "Complete · "+cnt.done+" sets"
@@ -1209,15 +1229,16 @@
     /* the column */
     order.forEach(function(ex,j){
       if(skipped(sel,ex)){ box.appendChild(skippedLine(ex)); return; }
-      if(exDone(sel,ex)){ box.appendChild(doneLine(ex)); return; }
-      if(cur && ex.id===cur.ex.id){
+      if(exDone(sel,ex) && !(openEx && ex.id===openEx.id)){ box.appendChild(doneLine(ex)); return; }
+      if(openEx && ex.id===openEx.id){
         if(local.dropFor===ex.id){
           var dcard=dropCard(ex);
           if(dcard){ box.appendChild(dcard); return; }
         }
-        box.appendChild(openCard(ex,cur.i));
+        box.appendChild(openCard(ex,openIdx));
         return;
       }
+      if(exDone(sel,ex)){ box.appendChild(doneLine(ex)); return; }
       box.appendChild(pendingLine(ex));
     });
 
@@ -1225,6 +1246,14 @@
     if(local.dropFor && (!cur || cur.ex.id!==local.dropFor)){
       var dex=null; order.forEach(function(e){ if(e.id===local.dropFor) dex=e; });
       if(dex){ var dc2=dropCard(dex); if(dc2) box.insertBefore(dc2, box.children[cur?2:1]||null); }
+    }
+
+    if(focusEx && cur && cur.ex.id!==focusEx.id){
+      var backRow=el("div","endrow");
+      backRow.appendChild(quiet("Back to "+cur.ex.n+" · set "+(cur.i+1),function(){
+        local.focus=null; saveRun(); render(); window.scrollTo(0,0);
+      }));
+      box.appendChild(backRow);
     }
 
     if(!cur) box.appendChild(finishCard(order,cnt));
@@ -1823,7 +1852,7 @@
             : earnsBump(ex,rec) ? "goes up"
             : bad ? "dropping off" : (counts(ex,rec)?"holding":"");
     if(tag) l.appendChild(el("span","ltag"+(bad?" bad":""),tag));
-    l.addEventListener("click",function(){ listMode=true; render(); });
+    l.addEventListener("click",function(){ local.focus=ex.id; saveRun(); render(); });
     return l;
   }
   function pendingLine(ex){
@@ -1836,11 +1865,7 @@
     l.appendChild(el("span","ltag", gotP.length ? gotP.join(" / ")+" · "+gotP.length+" of "+ex.s
                                                 : ex.s+" × "+ex.lo+"–"+ex.hi));
     l.addEventListener("click",function(){
-      var r=day(sel), ord=sessionOrder(sel).map(function(e){return e.id;});
-      ord.splice(ord.indexOf(ex.id),1); 
-      var cur=cursor(sel);
-      ord.splice(cur?ord.indexOf(cur.ex.id):0,0,ex.id);
-      r.ord=ord; touch(); clearRest(false); render();
+      local.focus=ex.id; saveRun(); render();
     });
     return l;
   }
