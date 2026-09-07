@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 30;
+  var BUILD = 31;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90 };
 
@@ -635,6 +635,7 @@
          local = (r && r.d===effToday()) ? r : { d:effToday() }; }
     catch(e){ local = { d:effToday() }; }
     local.warmTicks = local.warmTicks || [];
+    local.resetArmed = 0;                  // never resume a half-armed destructive tap
   }
   function saveRun(){ try{ localStorage.setItem(RUNK, JSON.stringify(local)); }catch(e){} }
 
@@ -1180,6 +1181,7 @@
       if(trashOf(sel)) box.appendChild(deleteControl(sel));
       return;
     }
+    if(local.resetArmed && !cursor(sel)) local.resetArmed=0;
 
     /* CAPTURES */
     if(local.capturing){ box.appendChild(capturesCard()); return; }
@@ -1239,6 +1241,26 @@
         endRow.appendChild(quiet("End session here",function(){
           local.ended=1; clearRest(false); saveRun(); render(); window.scrollTo(0,0);
         }));
+        /* Start over. Two taps, and it keeps the same undo snapshot delete uses,
+           so a mis-tap here is recoverable for the rest of the day. */
+        if(local.resetArmed){
+          var go=el("button","quietbtn danger","Reset — clear "+cnt.done+" set"+(cnt.done>1?"s":""));
+          go.type="button";
+          go.addEventListener("click",function(){
+            deleteSession(sel);
+            local.started=null; local.ended=0; local.capturing=0; local.resetArmed=0;
+            local.warmTicks=[]; local.warmSkipped=0; local.dropFor=null; local.picking=0;
+            clearRest(false); saveRun(); render(); window.scrollTo(0,0);
+          });
+          endRow.appendChild(go);
+          endRow.appendChild(quiet("Keep it",function(){
+            local.resetArmed=0; saveRun(); render();
+          }));
+        } else {
+          endRow.appendChild(quiet("Reset session",function(){
+            local.resetArmed=1; saveRun(); render();
+          }));
+        }
       }
       box.appendChild(endRow);
     }
