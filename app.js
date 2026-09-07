@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 33;
+  var BUILD = 34;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -453,6 +453,11 @@
      locked phone must pick it back up rather than silently dropping it. */
   function resumeRest(){
     if(restTick || !restLive()) return;
+    if(local.restExId===WARM_ID){
+      startRest(warmEx("Warm-up"), local.restSecs || REST.warm, local.restEndAt);
+      document.getElementById("restsub").textContent = local.restNext || "";
+      return;
+    }
     var d=effToday(), order=sessionOrder(d), ex=null;
     order.forEach(function(e){ if(e.id===local.restExId) ex=e; });
     if(!ex){ local.restEndAt=null; local.restExId=null; local.restStart=null; saveRun(); return; }
@@ -890,6 +895,17 @@
   }
 
   /* ---------- rest clock (device-local, absolute timestamp) ---------- */
+  var WARM_ID="__warm";
+  function warmEx(name){ return { id:WARM_ID, n:name, s:1, lo:1, hi:1, big:0 }; }
+  function beginWarmRest(name,secs,nextText){
+    local.restEndAt = Date.now()+secs*1000;
+    local.restExId  = WARM_ID; local.restSetIdx = 0; local.restSecs = secs;
+    local.restStart = Date.now(); local.restNext = nextText || "";
+    saveRun();
+    startRest(warmEx(name), secs);
+    document.getElementById("restsub").textContent = nextText || (secs+" seconds");
+  }
+
   function beginRest(ex,i,secs){
     local.restEndAt = Date.now()+secs*1000;
     local.restExId  = ex.id; local.restSetIdx=i; local.restSecs=secs;
@@ -1395,7 +1411,10 @@
       if(row.rest) left.appendChild(el("div","warmrest","rest "+row.rest));
       r.appendChild(left);
       if(!ticks[i]) r.appendChild(bigBtn("Done","sm",function(){
-        local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1; saveRun(); render();
+        local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1;
+        var next = rows[i+1] ? "Then "+rows[i+1].t : "Then "+ramp.ex.n+", "+ramp.top+" kg";
+        beginWarmRest(ramp.ex.n+" warm-up", REST.warm, next);
+        render();
       }));
       c.appendChild(r);
     });

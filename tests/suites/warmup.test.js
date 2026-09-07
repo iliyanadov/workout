@@ -34,6 +34,42 @@ module.exports = (test) => {
     });
   }
 
+  test("ticking a ramp set starts a real 45-second countdown", () => {
+    const a = boot({ now: "2026-09-07T09:00:00" });
+    a.start();
+    a.tap(a.all(".card.warm .runbtn")[0]);
+    ok(a.one("#rest").classList.contains("on"), "the rest bar must appear");
+    eq(a.txt(a.one("#clock")), "0:45");
+    has(a.txt(a.one("#restsub")), "Then");
+    eq(a.runState().restExId, "__warm");
+  });
+
+  test("the warm-up countdown says what comes next", () => {
+    const a = boot({ now: "2026-09-07T09:00:00" });
+    a.start();
+    a.tap(a.all(".card.warm .runbtn")[0]);
+    has(a.txt(a.one("#restsub")), "72.5 kg", "after ramp 1 it names ramp 2");
+    a.tap(a.all(".card.warm .runbtn")[0]);
+    has(a.txt(a.one("#restsub")), "97.6 kg", "after ramp 2 it names the working weight");
+  });
+
+  test("a warm-up rest records nothing against any exercise", () => {
+    const a = boot({ now: "2026-09-07T09:00:00" });
+    a.start();
+    a.tap(a.all(".card.warm .runbtn")[0]);
+    a.tap("#restskip");
+    eq(a.exRec("2026-09-07", "hacksquat"), null, "the ramp must never touch the log");
+  });
+
+  test("a warm-up rest survives a reload", () => {
+    const a = boot({ now: "2026-09-07T09:00:00" });
+    a.start();
+    a.tap(a.all(".card.warm .runbtn")[0]);
+    const b = boot({ now: "2026-09-07T09:00:20", days: a.store() ? a.store().days : null, run: a.runState() });
+    ok(b.one("#rest").classList.contains("on"), "the countdown should still be running");
+    eq(b.txt(b.one("#clock")), "0:25");
+  });
+
   test("the card says why the warm-up rest is short", () => {
     const a = boot({ now: "2026-09-07T09:00:00" });
     a.start();
