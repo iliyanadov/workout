@@ -5,9 +5,9 @@
 (function () {
   "use strict";
 
-  var BUILD = 31;
+  var BUILD = 32;
   var CFG = window.CONFIG || {};
-  var REST = { big: 180, other: 90 };
+  var REST = { big: 180, other: 90, warm: 45 };
 
   var PLAN = {
     lowerA: { name: "Lower A", sub: "knee dominant", ex: [
@@ -1351,14 +1351,19 @@
     c.appendChild(el("div","kicker","Warm up · two sets"));
     c.appendChild(el("div","warnline","Without this, set 1 is the warm-up — and set 1 is the set you keep taking to failure."));
     var ticks=local.warmTicks||[];
-    var rows=ramp.rows.map(function(r){
-      return {t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps, w:r.why};
+    var rows=ramp.rows.map(function(r,i){
+      return { t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps,
+               w:r.why,
+               rest: i<ramp.rows.length-1
+                 ? REST.warm+" seconds, then the next one"
+                 : REST.warm+" seconds, then the working set" };
     });
     rows.forEach(function(row,i){
       var r=el("div","warmrow"+(ticks[i]?" on":""));
       var left=el("div","warmtxt");
       left.appendChild(el("div","warmmain",(ticks[i]?"✓ ":"○ ")+row.t));
       if(row.w) left.appendChild(el("div","warmwhy",row.w));
+      if(row.rest) left.appendChild(el("div","warmrest","rest "+row.rest));
       r.appendChild(left);
       if(!ticks[i]) r.appendChild(bigBtn("Done","sm",function(){
         local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1; saveRun(); render();
@@ -1366,6 +1371,8 @@
       c.appendChild(r);
     });
     c.appendChild(el("div","warmthen","Then: "+ramp.ex.n+", "+ramp.top+" kg."));
+    c.appendChild(el("div","warmwhy",
+      "These are preparation, not work — "+REST.warm+" seconds is enough. Do not rest them like sets."));
     c.appendChild(quiet("Skip warm-up",function(){ local.warmSkipped=1; saveRun(); render(); }));
     return c;
   }
