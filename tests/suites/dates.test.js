@@ -90,11 +90,19 @@ module.exports = (test) => {
     has(b({ now: "2026-12-28T09:00:00" }).txt(b({ now: "2026-12-28T09:00:00" }).one("#wtoday")), "2026");
   });
 
-  test("cannot navigate back before the block, or forward past today", () => {
+  test("cannot navigate back before the block", () => {
     const a = b({ now: "2026-09-07T09:00:00" });
     a.listMode();
     ok(a.one("#wprev").disabled, "wprev must be disabled in week 1");
-    ok(a.one("#wnext").disabled, "wnext must be disabled on the anchored week");
+  });
+
+  test("can navigate forward to see what is coming, up to eight weeks", () => {
+    const a = b({ now: "2026-09-07T09:00:00" });
+    a.listMode();
+    no(a.one("#wnext").disabled, "you must be able to look ahead");
+    for (let i = 0; i < 8; i++) a.tap("#wnext");
+    has(a.txt(a.one("#wtoday")), "Week 9");
+    ok(a.one("#wnext").disabled, "eight weeks ahead is the limit");
   });
 
   test("from a later week you can page back but not past the horizon", () => {

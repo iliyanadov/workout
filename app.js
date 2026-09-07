@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 35;
+  var BUILD = 36;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -973,13 +973,19 @@
       var ds=addDays(m,i), dt=parse(ds);
       var b=document.createElement("button");
       b.className="day "+(sessionKey(ds)?"train":"rest")+" "+dayMark(ds)+
-                  (ds===today?" today":"")+(inBlock(ds)?"":" out");
+                  (ds===today?" today":"")+(inBlock(ds)?"":" out")+
+                  (isMissed(ds)?" missed":"")+(isFuture(ds)?" ahead":"");
       if(ds===sel) b.setAttribute("aria-current","date");
       b.innerHTML='<span class="dow">'+DOW[dt.getDay()]+'</span><span class="dnum">'+dt.getDate()+
                   '</span><span class="dot"></span>';
       (function(v){ b.addEventListener("click",function(){ sel=v; stopRest(); closePad(); render(); }); })(ds);
       box.appendChild(b);
     }
+  }
+
+  function isFuture(d){ return d > today; }
+  function isMissed(d){
+    return d < today && inBlock(d) && !!sessionOf(d) && !hasReps(d) && !((peek(d)||{}).run||{}).en;
   }
 
   function renderDay(){
@@ -993,7 +999,8 @@
     document.getElementById("sesstitle").textContent =
       !inBlock(sel) ? "Before the block" : (sess ? sess.name : "Rest day");
     document.getElementById("sessdate").textContent =
-      (!inBlock(sel) ? "Starts "+shortD(ORIGIN) : "Week "+wn) + " · " + pretty(sel);
+      (!inBlock(sel) ? "Starts "+shortD(ORIGIN) : "Week "+wn) + " · " + pretty(sel) +
+      (isFuture(sel) ? " · planned" : isMissed(sel) ? " · missed" : "");
 
     /* header context */
     var cnts=setCounts(sel), done=cnts.done, total=cnts.total;
@@ -1036,6 +1043,12 @@
         back2.addEventListener("click",function(){ listMode=false; render(); });
         list.appendChild(back2);
       }
+      if(isFuture(sel))
+        list.appendChild(el("div","cue","Planned for "+pretty(sel)+
+          ". These are the loads you would start on today — the app recalculates them on the day, from whatever you do between now and then."));
+      else if(isMissed(sel))
+        list.appendChild(el("div","cue","Nothing was logged on this day. You can still fill it in — everything here writes to "+
+          pretty(sel)+", not to today."));
       sess.ex.forEach(function(ex){ list.appendChild(exCard(ex)); });
       if(sessionSummary(sel) || trashOf(sel)) list.appendChild(deleteControl(sel));
       document.getElementById("dayhint").innerHTML =
@@ -1154,7 +1167,10 @@
       var v = rec && rec.r ? rec.r[i] : null;
       var b=el("button","slotbtn"+(v==null||v===""?" empty":""), (v==null||v==="")?"–":String(v));
       b.type="button";
-      if(!ex.bw && (!rec || rec.w==null) && (v==null||v==="")) b.disabled=true;
+      // Ask whether a weight EXISTS to use, not whether one has been stored:
+      // with no record yet, planned() still supplies the plan's own load.
+      if(!ex.bw && pl.w==null && (v==null||v==="")) b.disabled=true;
+      if(isFuture(sel)) b.disabled=true;
       b.setAttribute("aria-label", ex.n+" set "+(i+1)+(v==null?", not logged":", "+v+" reps"));
       b.addEventListener("click",function(){ openPad(ex,i); });
       var toFail = !ex.big || i===ex.s-1;
@@ -1190,7 +1206,18 @@
   }
 
   function renderRun(){
-    chrome(false);
+    var runningNow = !!local.started && !((peek(sel)||{}).run||{}).en && !!cursor(sel);
+    chrome(!runningNow);
+    if(!runningNow){
+      renderStrip();
+      var wn0=weekNo(mondayOf(sel));
+      document.getElementById("sesstitle").textContent = (sessionOf(sel)||{}).name || "Rest day";
+      document.getElementById("sessdate").textContent =
+        "Week "+wn0+" · "+pretty(sel)+
+        (((peek(sel)||{}).run||{}).en ? " · complete" : "");
+      document.getElementById("sesspick").innerHTML="";
+      document.getElementById("dayhint").textContent="";
+    }
     var box=document.getElementById("exlist"); box.innerHTML="";
     var sess=sessionOf(sel), order=sessionOrder(sel), rec=peek(sel)||{};
     var cur=cursor(sel), cnt=setCounts(sel);
@@ -2318,11 +2345,13 @@
     return "day";
   }
 
+  var LOOKAHEAD_WEEKS = 8;
+  function maxMonday(){ return addDays(mondayOf(effToday()), LOOKAHEAD_WEEKS*7); }
   function go(n){
     var t=addDays(sel,n);
     if(t<HORIZON) t=HORIZON;
-    if(mondayOf(t)>mondayOf(effToday())) return;
-    sel=t; stopRest(); closePad(); render();
+    if(mondayOf(t)>maxMonday()) return;
+    sel=t; stopRest(); closePad(); local.focus=null; saveRun(); render();
   }
   document.getElementById("wprev").addEventListener("click",function(){ go(-7); });
   document.getElementById("wnext").addEventListener("click",function(){ go(7); });
@@ -2339,7 +2368,7 @@
     t.textContent=(wn<1?"Before the block":"Week "+wn)+" · "+a+" – "+b+(sel===today?" · today":"");
     t.disabled = (sel===effToday());
     document.getElementById("wprev").disabled = (mondayOf(addDays(sel,-7)) < mondayOf(HORIZON));
-    document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > mondayOf(effToday()));
+    document.getElementById("wnext").disabled = (mondayOf(addDays(sel,7)) > maxMonday());
   }
 
   function render(){

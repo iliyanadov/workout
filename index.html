@@ -99,6 +99,9 @@ header{position:sticky;top:0;z-index:30;background:var(--ground);padding-top:var
 .day.has .dot{background:var(--good)}
 .day.part .dot{background:var(--muted);width:4px;height:4px}
 .day.out{opacity:.32}
+.day.missed{border-color:var(--warn)}
+.day.missed .dnum{color:var(--warn)}
+.day.ahead .dnum{color:var(--muted)}
 .day.rest .dnum{color:var(--faint)}
 .day[aria-current="date"]{border-color:var(--accent);background:var(--accent-soft)}
 .day[aria-current="date"] .dnum{color:var(--accent)}
