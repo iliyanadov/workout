@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 36;
+  var BUILD = 37;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -1885,6 +1885,27 @@
     row.appendChild(quiet("See the week",function(){ setTab("week"); }));
     row.appendChild(quiet("Change something",function(){ listMode=true; render(); }));
     c.appendChild(row);
+
+    var short=[];
+    order.forEach(function(ex){
+      if(skipped(sel,ex)) short.push(ex.n+" — skipped");
+      else {
+        var got=reps(peekEx(sel,ex.id));
+        if(got.length && got.length<ex.s) short.push(ex.n+" — "+got.length+" of "+ex.s+" sets");
+      }
+    });
+    if(short.length){
+      var re=el("div","cardfoot");
+      re.appendChild(quiet("Carry on — "+short.length+" exercise"+(short.length>1?"s":"")+" left short",
+        function(){
+          var r=day(sel); if(r.run) delete r.run.en;
+          local.started=Date.now(); local.ended=0; local.capturing=0;
+          local.warmSkipped=1; local.warmTicks=[1,1];   // the warm-up is long done
+          saveRun(); touch(); render(); window.scrollTo(0,0);
+        }));
+      c.appendChild(re);
+    }
+
     c.appendChild(deleteControl(sel));
     return c;
   }
@@ -1941,7 +1962,8 @@
     l.appendChild(el("span","ltag","skipped · tap to put back"));
     l.addEventListener("click",function(){
       var r=day(sel); if(r.skip) delete r.skip[ex.id];
-      touch(); render();
+      local.focus=ex.id;              // you tapped it because you want to do it
+      saveRun(); touch(); render();
     });
     return l;
   }
