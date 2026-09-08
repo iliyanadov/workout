@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 38;
+  var BUILD = 39;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -15,26 +15,26 @@
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
       { id:"legext",    n:"Leg Extension",       s:2, lo:12, hi:20, w:null,  step:2.5 },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
-      { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
+      { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperA: { name: "Upper A", sub: "push bias", ex: [
       { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push" },
       { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull" },
-      { id:"incline",   n:"Incline DB Press",    s:3, lo:8,  hi:12, w:24,    step:2,   big:1 },
+      { id:"incline",   n:"Incline DB Press",    s:3, lo:8,  hi:12, w:24,    step:2,   big:1, db:1 },
       { id:"pushdown",  n:"Triceps Rope Pushdown", s:3, lo:10, hi:15, w:null,  step:2.5 },
       { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 },
-      { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2 } ] },
+      { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2, db:1 } ] },
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
       { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
       { id:"hipthrust", n:"Hip Thrust",          s:2, lo:8,  hi:12, w:62.7,  step:2.5 },
       { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5 },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
-      { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
+      { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
       { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull" },
       { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
       { id:"dips",      n:"Dips",                s:3, lo:8,  hi:12, w:null,  step:2.5, bw:1, big:1 },
-      { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1 },
+      { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1, db:1 },
       { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 } ] }
   };
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
@@ -1084,7 +1084,8 @@
 
     var head=el("div","exhead");
     head.appendChild(el("span","exname",ex.n));
-    head.appendChild(el("span","prescr",ex.s+" × "+ex.lo+"–"+ex.hi+" · "+(ex.big?"3 min":"90s")));
+    head.appendChild(el("span","prescr",ex.s+" × "+ex.lo+"–"+ex.hi+" · "+(ex.big?"3 min":"90s")+
+      (ex.db?" · per hand":"")));
     card.appendChild(head);
 
     var prev=lastDone(sel,ex.id);
@@ -1110,7 +1111,7 @@
     wi.placeholder = ex.bw?"BW":"—";
     wi.value = pl.w==null?"":pl.w;
     wi.setAttribute("aria-label", ex.n+" weight in kg");
-    box.appendChild(wi); box.appendChild(el("span","wunit","kg"));
+    box.appendChild(wi); box.appendChild(el("span","wunit", ex.db?"kg each":"kg"));
     var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
 
     function setW(v){
@@ -1510,7 +1511,7 @@
           }
         }
       });
-      box2.appendChild(wi2); box2.appendChild(el("span","wunit","kg"));
+      box2.appendChild(wi2); box2.appendChild(el("span","wunit", ex.db?"kg each":"kg"));
       wr.appendChild(box2);
     }
     else{
@@ -1530,7 +1531,7 @@
         else if(!isNaN(n)&&n>=0){ r.w=Math.round(n*10)/10; }
         touch();
       });
-      val.appendChild(wIn); val.appendChild(el("span","wunit","kg"));
+      val.appendChild(wIn); val.appendChild(el("span","wunit", ex.db?"kg each":"kg"));
       var plus=el("button","wbtn","+"); plus.type="button"; plus.setAttribute("aria-label","More weight");
       // From nothing, land on a usable plate rather than crawling up in 2.5s.
       var NUDGE=0.1;
@@ -1589,7 +1590,7 @@
         r.st=Math.round((r.w-pl.from)*10)/10;                 // learned once, used forever
         touch();
       });
-      nbox.appendChild(ni); nbox.appendChild(el("span","wunit","kg"));
+      nbox.appendChild(ni); nbox.appendChild(el("span","wunit", ex.db?"kg each":"kg"));
       nrow.appendChild(nbox);
       var keep=el("button","wbtn"); keep.style.width="auto"; keep.style.padding="0 12px";
       keep.textContent="Same"; keep.setAttribute("aria-label","Keep the same weight");
