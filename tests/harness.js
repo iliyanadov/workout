@@ -88,7 +88,8 @@ function boot({ now = "2026-09-07T09:00:00", days = null, run = null, online = f
     },
 
     /* --- session driving --- */
-    start() { api.tap(".card.start .runbtn"); return api; },
+    /* A part-done day goes straight into the column, so there is nothing to tap. */
+    start() { if (api.one(".card.start")) api.tap(".card.start .runbtn"); return api; },
     warmup(skip) {
       if (skip) { const s = api.all(".card.warm .quietbtn")[0]; if (s) api.tap(s); return api; }
       let g = 0;

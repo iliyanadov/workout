@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 39;
+  var BUILD = 40;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -491,6 +491,10 @@
      failure set gets the grid, and a big-lift set that has just been given a
      number gets the reserve question. */
   function openLog(ex,i){
+    /* No caller may log against a weight that does not exist. The gate used to
+       live only on the button, and the set boxes went straight past it. */
+    if(!ex.bw && planned(sel,ex).w==null) return;
+    if(isFuture(sel)) return;
     padCtx={ex:ex,i:i,d:sel};
     var target=stopTarget(sel,ex,i);
     if(target!=null) padShort(ex,i,target);
@@ -651,6 +655,7 @@
     catch(e){ local = { d:effToday() }; }
     local.warmTicks = local.warmTicks || [];
     local.resetArmed = 0;                  // never resume a half-armed destructive tap
+    local.exReset = null;
     if(local.focus==null) local.focus=null;
   }
   function saveRun(){ try{ localStorage.setItem(RUNK, JSON.stringify(local)); }catch(e){} }
@@ -1484,18 +1489,23 @@
       var box2=el("div","wbox");
       var wi2=document.createElement("input");
       wi2.className="winput"; wi2.type="number"; wi2.inputMode="decimal"; wi2.step="any";
-      wi2.placeholder="—"; wi2.setAttribute("aria-label",ex.n+" weight in kg");
+      wi2.placeholder="tap"; wi2.className="winput needw";
+      wi2.setAttribute("aria-label",ex.n+" weight in kg");
       wi2.addEventListener("input",function(){
         var n=parseFloat(wi2.value), r=entry(sel,ex.id);
         if(wi2.value===""){ r.w=null; }
         else if(!isNaN(n)&&n>=0){ r.w=Math.round(n*10)/10; }
         touch();
+        [].slice.call(document.querySelectorAll(".card.open .s2")).forEach(function(b){
+          b.disabled = (r.w==null);
+        });
         var lb=document.getElementById("logbtn");
         if(lb){
           lb.disabled=(r.w==null);
           lb.className="runbtn"+(r.w==null?"":" go");
           lb.textContent=r.w==null?"Set a weight first":"Done — log set "+(i+1);
         }
+        wi2.classList.toggle("needw", r.w==null);
         var hv=document.getElementById("cardhero"), hs=document.getElementById("cardherosub");
         if(hv && hs){
           var tgt=stopTarget(sel,ex,i);
@@ -1554,6 +1564,7 @@
     c.appendChild(wr);
 
     /* slots so far */
+    var needsWeight = (pl.w==null && !ex.bw);
     var sl=el("div","slots2");
     for(var k=0;k<ex.s;k++){
       var v=(rec.r||[])[k];
@@ -1562,6 +1573,7 @@
       var b=el("button","s2"+(v==null||v===""?" e":"")+((rec.q||[])[k]===0?" g":""),
                (v==null||v==="")?"–":String(v));
       b.type="button";
+      if(needsWeight) b.disabled=true;
       b.setAttribute("aria-label", ex.n+" set "+(k+1)+
         (v==null||v===""?", not logged":", "+v+" reps — tap to change"));
       (function(idx){ b.addEventListener("click",function(){ openLog(ex,idx); }); })(k);
@@ -1618,7 +1630,6 @@
       bump.appendChild(undo); c.appendChild(bump);
     }
 
-    var needsWeight = (pl.w==null && !ex.bw);
     if(needsWeight){
       var h0=el("div","hero fail","FIND A WEIGHT"); h0.id="cardhero"; c.appendChild(h0);
       var h1=el("div","herosub",
@@ -1655,7 +1666,28 @@
     }
 
     var row=el("div","cardfoot");
-    if(!reps(peekEx(sel,ex.id)).length) row.appendChild(quiet("Machine taken",function(){
+    /* Clear one exercise without touching the rest of the session. */
+    var logged=reps(peekEx(sel,ex.id)).length;
+    if(logged){
+      if(local.exReset===ex.id){
+        var rgo=el("button","quietbtn danger","Clear "+logged+" set"+(logged>1?"s":""));
+        rgo.type="button";
+        rgo.addEventListener("click",function(){
+          var r=entry(sel,ex.id);
+          r.r=[]; r.q=[]; r.g=[]; r.wr=[]; r.t=[];
+          delete r.fin; delete r.nt;
+          local.exReset=null; local.dropFor=null; local.focus=ex.id;
+          clearRest(false); saveRun(); touch(); render();
+        });
+        row.appendChild(rgo);
+        row.appendChild(quiet("Keep them",function(){ local.exReset=null; saveRun(); render(); }));
+      } else {
+        row.appendChild(quiet("Reset this exercise",function(){
+          local.exReset=ex.id; saveRun(); render();
+        }));
+      }
+    }
+    if(!logged) row.appendChild(quiet("Machine taken",function(){
       var r=day(sel); r.skip=r.skip||{}; r.skip[ex.id]=1;
       if(!r.note) r.note="Machine taken"; touch(); render();
     }));
