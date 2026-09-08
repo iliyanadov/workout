@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 37;
+  var BUILD = 38;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -18,10 +18,10 @@
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
     upperA: { name: "Upper A", sub: "push bias", ex: [
       { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push" },
-      { id:"csrow",     n:"Chest Support Row",   s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull" },
+      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull" },
       { id:"incline",   n:"Incline DB Press",    s:3, lo:8,  hi:12, w:24,    step:2,   big:1 },
-      { id:"pushdown",  n:"Triceps Pushdown",    s:3, lo:10, hi:15, w:null,  step:2.5 },
-      { id:"reardelt",  n:"Rear Delt Flye",      s:3, lo:12, hi:20, w:null,  step:2.5 },
+      { id:"pushdown",  n:"Triceps Rope Pushdown", s:3, lo:10, hi:15, w:null,  step:2.5 },
+      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 },
       { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2 } ] },
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
       { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
@@ -32,10 +32,10 @@
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
       { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull" },
-      { id:"csrow",     n:"Chest Support Row",   s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
+      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
       { id:"dips",      n:"Dips",                s:3, lo:8,  hi:12, w:null,  step:2.5, bw:1, big:1 },
       { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1 },
-      { id:"reardelt",  n:"Rear Delt Flye",      s:3, lo:12, hi:20, w:null,  step:2.5 } ] }
+      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 } ] }
   };
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
   var BY_DOW = { 1:"lowerA", 2:"upperA", 4:"lowerB", 5:"upperB" };

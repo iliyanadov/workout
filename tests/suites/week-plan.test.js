@@ -109,8 +109,8 @@ module.exports = (test) => {
     a.tab("plan");
     const big = a.all("#view-plan .ptable tr.big td:first-child").map(a.txt);
     // "·" marks a load that was deliberately reset downward; hack squat is one.
-    eq(big, ["Hack Squat ·","Machine Chest Press","Chest Support Row ·","Incline DB Press",
-             "Leg Press","Lat Pulldown","Chest Support Row ·","Dips"]);
+    eq(big, ["Hack Squat ·","Machine Chest Press","Seated Row · Chest Pad ·","Incline DB Press",
+             "Leg Press","Lat Pulldown","Seated Row · Chest Pad ·","Dips"]);
   });
 
   test("the plan tab reads the same numbers the logger uses", () => {
