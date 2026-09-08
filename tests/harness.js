@@ -90,13 +90,20 @@ function boot({ now = "2026-09-07T09:00:00", days = null, run = null, online = f
     /* --- session driving --- */
     /* A part-done day goes straight into the column, so there is nothing to tap. */
     start() { if (api.one(".card.start")) api.tap(".card.start .runbtn"); return api; },
+    /* The warm-up alternates a set card and a rest card, so drive both. */
     warmup(skip) {
-      if (skip) { const s = api.all(".card.warm .quietbtn")[0]; if (s) api.tap(s); return api; }
+      if (skip) {
+        const s = api.all(".card.warm .quietbtn").find(b => /Skip the warm-up/.test(api.txt(b)));
+        if (s) api.tap(s);
+        return api;
+      }
       let g = 0;
-      while (api.one(".card.warm") && g++ < 8) {
-        const b = api.all(".card.warm .runbtn")[0];
-        if (!b) break;
-        api.tap(b);
+      while (api.one(".card.warm") && g++ < 12) {
+        const done = api.all(".card.warm .runbtn")[0];
+        if (done) { api.tap(done); continue; }
+        const on = api.all(".card.warm .quietbtn").find(b => /Skip rest|^Next$/.test(api.txt(b)));
+        if (on) { api.tap(on); continue; }
+        break;
       }
       return api;
     },

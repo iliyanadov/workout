@@ -40,11 +40,10 @@ module.exports = (test) => {
     });
   }
 
-  test("warm-up is two ramp sets and closes when both are ticked", () => {
+  test("warm-up is two guided sets and closes after the last rest", () => {
     const a = boot({ now: "2026-09-07T09:00:00" });
     a.start();
-    eq(a.all(".card.warm .warmmain").length, 2);
-    has(a.txt(a.one(".card.warm .kicker")), "two sets");
+    eq(a.txt(a.one(".card.warm .cardtag")), "SET 1 OF 2");
     a.warmup();
     no(a.one(".card.warm"));
     eq(a.openName(), "Hack Squat");

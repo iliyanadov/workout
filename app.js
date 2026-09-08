@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 40;
+  var BUILD = 41;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -455,7 +455,8 @@
       document.getElementById("restsub").textContent = "Go.";
       chime(); if(navigator.vibrate) navigator.vibrate([200,90,200]);
       announce("Rest over. Next set.");
-      clearRest(true); render();        // record the real rest, then redraw with a log button
+      if(local.restExId===WARM_ID){ clearRest(false); render(); }
+      else { clearRest(true); render(); }
       holdScreen(false);
     }
   }
@@ -1271,7 +1272,11 @@
 
     /* warm-up */
     var ramp=rampFor(sel);
-    if(ramp && !local.warmSkipped && (local.warmTicks||[]).filter(Boolean).length < 2)
+    /* Keep the warm-up on screen while its rest is running, or the last ramp set
+       would hand you straight to the working set with no rest at all. */
+    var warmDone = (local.warmTicks||[]).filter(Boolean).length >= 2;
+    var warmResting = restShown() && local.restExId===WARM_ID;
+    if(ramp && !local.warmSkipped && (!warmDone || warmResting))
       box.appendChild(warmCard(ramp));
     else if(ramp) box.appendChild(tickLine(local.warmSkipped?"– Warm-up skipped":"✓ Warm-up", ""));
 
@@ -1435,38 +1440,69 @@
     return c;
   }
 
+  /* The warm-up is guided the same way the session is: one set on screen, a
+     Done button, then the same inline countdown. It used to be a two-row
+     checklist with the clock only in the bottom bar, which is not the same
+     thing and did not read as one. */
   function warmCard(ramp){
-    var c=el("div","card warm");
-    c.appendChild(el("div","kicker","Warm up · two sets"));
-    c.appendChild(el("div","warnline","Without this, set 1 is the warm-up — and set 1 is the set you keep taking to failure."));
     var ticks=local.warmTicks||[];
     var rows=ramp.rows.map(function(r,i){
-      return { t:ramp.ex.n+" · about "+r.w+" kg × "+r.reps,
-               w:r.why,
-               rest: i<ramp.rows.length-1
-                 ? REST.warm+" seconds, then the next one"
-                 : REST.warm+" seconds, then the working set" };
+      return { w:r.w, reps:r.reps, why:r.why, last:i===ramp.rows.length-1 };
     });
-    rows.forEach(function(row,i){
-      var r=el("div","warmrow"+(ticks[i]?" on":""));
-      var left=el("div","warmtxt");
-      left.appendChild(el("div","warmmain",(ticks[i]?"✓ ":"○ ")+row.t));
-      if(row.w) left.appendChild(el("div","warmwhy",row.w));
-      if(row.rest) left.appendChild(el("div","warmrest","rest "+row.rest));
-      r.appendChild(left);
-      if(!ticks[i]) r.appendChild(bigBtn("Done","sm",function(){
+    var i=0; while(i<rows.length && ticks[i]) i++;
+    if(i>=rows.length) i=rows.length-1;
+    var row=rows[i];
+    var resting = restShown() && local.restExId===WARM_ID;
+
+    var c=el("div","card warm");
+    var head=el("div","cardhead");
+    head.appendChild(el("h2","cardname","Warm up"));
+    head.appendChild(el("div","cardtag","SET "+(i+1)+" OF "+rows.length));
+    c.appendChild(head);
+    c.appendChild(el("div","lastline",ramp.ex.n));
+
+    if(resting){
+      c.appendChild(warmRestPanel(ramp,i,rows));
+    } else {
+      c.appendChild(el("div","hero fail","ABOUT "+row.w+" KG"));
+      c.appendChild(el("div","herosub",row.reps+" reps · "+row.why));
+      c.appendChild(bigBtn("Done — "+row.w+" kg × "+row.reps,"go",function(){
         local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1;
-        var next = rows[i+1] ? "Then "+rows[i+1].t : "Then "+ramp.ex.n+", "+ramp.top+" kg";
+        var next = rows[i+1]
+          ? "Next — about "+rows[i+1].w+" kg × "+rows[i+1].reps
+          : "Next — "+ramp.ex.n+", "+ramp.top+" kg";
         beginWarmRest(ramp.ex.n+" warm-up", REST.warm, next);
         render();
       }));
-      c.appendChild(r);
-    });
-    c.appendChild(el("div","warmthen","Then: "+ramp.ex.n+", "+ramp.top+" kg."));
-    c.appendChild(el("div","warmwhy",
-      "These are preparation, not work — "+REST.warm+" seconds is enough. Do not rest them like sets."));
-    c.appendChild(quiet("Skip warm-up",function(){ local.warmSkipped=1; saveRun(); render(); }));
+    }
+
+    var foot=el("div","cardfoot");
+    foot.appendChild(quiet("Skip the warm-up",function(){
+      local.warmSkipped=1; clearRest(false); saveRun(); render();
+    }));
+    if(i>0) foot.appendChild(quiet("Back a set",function(){
+      local.warmTicks[i-1]=0; clearRest(false); saveRun(); render();
+    }));
+    c.appendChild(foot);
     return c;
+  }
+
+  function warmRestPanel(ramp,i,rows){
+    var p=el("div","restpanel");
+    p.appendChild(el("div","restlogged","Set "+(i+1)+" done · about "+rows[i].w+" kg × "+rows[i].reps));
+    var left=Math.max(0,Math.round((local.restEndAt-Date.now())/1000));
+    var big=el("div","restbig",left>0?(Math.floor(left/60)+":"+String(left%60).padStart(2,"0")):"GO.");
+    big.id="restbig"; p.appendChild(big);
+    p.appendChild(el("div","restwhy",left>0
+      ? "Rest "+local.restSecs+" seconds. Preparation, not work."
+      : "Go."));
+    p.appendChild(el("div","coach", local.restNext || ""));
+    var r=el("div","cardfoot");
+    r.appendChild(quiet(left>0?"Skip rest — I'm ready":"Next",function(){
+      clearRest(false); render();
+    }));
+    p.appendChild(r);
+    return p;
   }
 
   function openCard(ex,i){
