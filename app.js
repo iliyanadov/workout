@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 41;
+  var BUILD = 42;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -38,7 +38,9 @@
       { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 } ] }
   };
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
-  var BY_DOW = { 1:"lowerA", 2:"upperA", 4:"lowerB", 5:"upperB" };
+  /* Mon, Tue, Fri, Sat. Two pairs of back-to-back days either way; this puts
+     the long gap mid-week instead of before Monday. */
+  var BY_DOW = { 1:"lowerA", 2:"upperA", 5:"lowerB", 6:"upperB" };
 
   var RULES = {
     set: { t:"How to run a set", p:[
@@ -73,6 +75,7 @@
   };
 
   var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var DOWFULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   /* ---------------- dates ---------------- */
@@ -2374,8 +2377,13 @@
 
     var intro=el("div","stat");
     intro.appendChild(el("div","statlab","The block"));
+    var sched = ORDER.map(function(k){
+      var d=Object.keys(BY_DOW).filter(function(x){ return BY_DOW[x]===k; })[0];
+      return DOWFULL[d]+" "+PLAN[k].name;
+    }).join(", ");
     intro.appendChild(el("div","statnote",
-      "Four days a week, upper/lower, two leg days because legs are the priority. Monday Lower A, Tuesday Upper A, Thursday Lower B, Friday Upper B. Starts "+pretty(ORIGIN)+"."));
+      "Four days a week, upper/lower, two leg days because legs are the priority. "+
+      sched+". Starts "+pretty(ORIGIN)+"."));
     box.appendChild(intro);
 
     ORDER.forEach(function(k){

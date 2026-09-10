@@ -24,19 +24,19 @@ module.exports = (test) => {
 
   test("you can look at an upcoming session and see its planned loads", () => {
     const a = boot({ now: "2026-09-07T20:00:00", days: done() });
-    a.tap(a.all("#daystrip .day")[3]);                 // Thursday
+    a.tap(a.all("#daystrip .day")[4]);                 // Friday
     eq(a.txt(a.one(".sesstitle")), "Lower B");
     has(a.txt(a.one("#sessdate")), "planned");
-    has(a.txt(a.one("#exlist .cue")), "Planned for Thu 10 Sep");
+    has(a.txt(a.one("#exlist .cue")), "Planned for Fri 11 Sep");
     ok(a.all(".ex").some(e => /Leg Press/.test(a.txt(e))));
   });
 
   test("a future day cannot be logged into", () => {
     const a = boot({ now: "2026-09-07T20:00:00", days: done() });
-    a.tap(a.all("#daystrip .day")[3]);
+    a.tap(a.all("#daystrip .day")[4]);
     ok(a.all(".ex .slotbtn").every(b => b.disabled), "every slot must be inert");
     a.all(".ex .slotbtn").forEach(b => a.tap(b));
-    eq(a.dayRec("2026-09-10"), null, "nothing may be written to a day that has not happened");
+    eq(a.dayRec("2026-09-11"), null, "nothing may be written to a day that has not happened");
   });
 
   test("a missed training day is marked, and can still be filled in", () => {
@@ -53,7 +53,7 @@ module.exports = (test) => {
     const cells = a.all("#daystrip .day");
     ok(cells[1].className.includes("missed"), "Tuesday was a training day with nothing logged");
     no(cells[0].className.includes("missed"), "Monday was completed");
-    ok(cells[3].className.includes("ahead"), "Thursday is still to come");
+    ok(cells[4].className.includes("ahead"), "Friday is still to come");
   });
 
   test("paging forward and back returns you to the same place", () => {
@@ -83,6 +83,6 @@ module.exports = (test) => {
       a.tap(c);
       names.push(a.txt(a.one(".sesstitle")));
     });
-    eq(names, ["Lower A","Upper A","Rest day","Lower B","Upper B","Rest day","Rest day"]);
+    eq(names, ["Lower A","Upper A","Rest day","Rest day","Lower B","Upper B","Rest day"]);
   });
 };

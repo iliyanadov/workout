@@ -35,8 +35,8 @@ module.exports = (test) => {
   });
 
   test("a bodyweight lift is never cut", () => {
-    const days = { "2026-09-11": { ex: { dips: { w:null, r:[4,3,3], q:[0,2,0], g:[true,false,false] } }, updatedAt:1 } };
-    const a = boot({ now: "2026-09-18T09:00:00", days });
+    const days = { "2026-09-12": { ex: { dips: { w:null, r:[4,3,3], q:[0,2,0], g:[true,false,false] } }, updatedAt:1 } };
+    const a = boot({ now: "2026-09-19T09:00:00", days });
     a.start().warmup();
     let g=0; while (g++ < 20 && a.openName() !== "Dips") { a.setWeightIfAsked(40); if(!a.logBtn()) break; a.logSet("held"); a.skipRest(); }
     if (a.openName() === "Dips") hasNot(a.txt(a.one(".card.open")), "below the");

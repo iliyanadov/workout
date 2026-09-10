@@ -7,7 +7,7 @@ module.exports = (test) => {
   const open = (when) => { const a = boot({ now: when + "T09:00:00" }); a.start().warmup(); return a; };
 
   test("the start card states both rules when the session mixes them", () => {
-    for (const d of ["2026-09-07","2026-09-08","2026-09-10","2026-09-11"]) {
+    for (const d of ["2026-09-07","2026-09-08","2026-09-11","2026-09-12"]) {
       const a = boot({ now: d + "T09:00:00" });
       const rule = a.txt(a.one(".card.start .rule"));
       has(rule, "two reps still in you", d);
@@ -24,7 +24,7 @@ module.exports = (test) => {
   });
 
   test("a bodyweight lift is never told it is 'at this weight'", () => {
-    const a = open("2026-09-11");
+    const a = open("2026-09-12");
     for (let i = 0; i < 6; i++) { a.setWeightIfAsked(40); if (a.logBtn()) a.logSet("held"); a.skipRest(); }
     while (a.openName() && a.openName() !== "Dips" ) {
       a.setWeightIfAsked(40);
@@ -98,8 +98,8 @@ module.exports = (test) => {
   });
 
   test("nothing offers to add weight to a bodyweight lift", () => {
-    const days = { "2026-09-11": { ex: { dips: { w: null, r: [12,12,12], q: [2,2,0], g: [false,false,false] } } , updatedAt: 1 } };
-    const a = boot({ now: "2026-09-11T20:00:00", days });
+    const days = { "2026-09-12": { ex: { dips: { w: null, r: [12,12,12], q: [2,2,0], g: [false,false,false] } } , updatedAt: 1 } };
+    const a = boot({ now: "2026-09-12T20:00:00", days });
     a.tab("week");
     const ups = a.txt(a.one("#weekbody"));
     hasNot(ups.split("Watch")[0], "Dips");

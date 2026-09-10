@@ -7,8 +7,8 @@ module.exports = (test) => {
   const SESSIONS = [
     ["Lower A","2026-09-07","Hack Squat",           [50, 72.5], "97.6"],
     ["Upper A","2026-09-08","Machine Chest Press",  [30, 45],   "59"],
-    ["Lower B","2026-09-10","Leg Press",            [75, 110],  "145.7"],
-    ["Upper B","2026-09-11","Lat Pulldown",         [37.5, 55], "73"],
+    ["Lower B","2026-09-11","Leg Press",            [75, 110],  "145.7"],
+    ["Upper B","2026-09-12","Lat Pulldown",         [37.5, 55], "73"],
   ];
 
   for (const [name, day, exName, loads, top] of SESSIONS) {

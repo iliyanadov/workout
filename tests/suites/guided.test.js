@@ -6,8 +6,8 @@ module.exports = (test) => {
   const SESSIONS = [
     { day: "2026-09-07", name: "Lower A", first: "Hack Squat",          sets: 15 },
     { day: "2026-09-08", name: "Upper A", first: "Machine Chest Press", sets: 18 },
-    { day: "2026-09-10", name: "Lower B", first: "Leg Press",           sets: 17 },
-    { day: "2026-09-11", name: "Upper B", first: "Lat Pulldown",        sets: 15 },
+    { day: "2026-09-11", name: "Lower B", first: "Leg Press",           sets: 17 },
+    { day: "2026-09-12", name: "Upper B", first: "Lat Pulldown",        sets: 15 },
   ];
 
   const runWhole = (day) => {

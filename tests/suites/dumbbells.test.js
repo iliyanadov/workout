@@ -36,7 +36,7 @@ module.exports = (test) => {
 
   test("every dumbbell exercise is marked, and no machine is", () => {
     const days = { "2026-09-07": { ex: {}, updatedAt: 1 } };
-    for (const day of ["2026-09-07", "2026-09-08", "2026-09-10", "2026-09-11"]) {
+    for (const day of ["2026-09-07", "2026-09-08", "2026-09-11", "2026-09-12"]) {
       const a = boot({ now: day + "T09:00:00", days });
       a.listMode();
       a.all(".ex").forEach(card => {

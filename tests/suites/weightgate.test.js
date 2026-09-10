@@ -73,8 +73,8 @@ module.exports = (test) => {
     const a = boot({ now: "2026-09-08T20:00:00",
       days: { "2026-09-08": { ex: { chestpress: { w:59, r:[11,11,8,5], q:[2,2,0,0], g:[false,false,true,false] } },
               run: { st:1, en:2 }, updatedAt: 1 } } });
-    a.tap(a.all("#daystrip .day")[3]);          // Thursday, still ahead
+    a.tap(a.all("#daystrip .day")[4]);          // Friday, still ahead
     a.all(".ex .slotbtn").forEach(b => a.tap(b));
-    eq(a.dayRec("2026-09-10"), null);
+    eq(a.dayRec("2026-09-11"), null);
   });
 };

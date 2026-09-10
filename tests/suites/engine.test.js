@@ -67,8 +67,8 @@ module.exports = (test) => {
   });
 
   test("a bodyweight lift never earns a weight increase", () => {
-    const days = { "2026-09-11": { ex: { dips: { w: null, r: [12,12,12], q: [2,2,0], g: [false,false,false] } }, updatedAt: 1 } };
-    const a = boot({ now: "2026-09-18T09:00:00", days });
+    const days = { "2026-09-12": { ex: { dips: { w: null, r: [12,12,12], q: [2,2,0], g: [false,false,false] } }, updatedAt: 1 } };
+    const a = boot({ now: "2026-09-19T09:00:00", days });
     a.tab("week");
     hasNot(a.txt(a.one("#weekbody")), "Dips");
   });

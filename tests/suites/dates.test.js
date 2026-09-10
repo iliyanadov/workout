@@ -63,15 +63,32 @@ module.exports = (test) => {
     eq(a.all("#daystrip .day .dow").map(a.txt), ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]);
   });
 
-  test("training days are Mon Tue Thu Fri; the rest are rest days", () => {
+  test("training days are Mon Tue Fri Sat; the rest are rest days", () => {
     const map = {};
     for (const d of ["2026-09-07","2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-12","2026-09-13"]) {
       const a = b({ now: d + "T09:00:00" });
       map[d] = a.one(".card.start") ? a.txt(a.one(".card.start .bigtitle")) : a.txt(a.one(".sesstitle"));
     }
     eq(map, { "2026-09-07":"Lower A", "2026-09-08":"Upper A", "2026-09-09":"Rest day",
-              "2026-09-10":"Lower B", "2026-09-11":"Upper B", "2026-09-12":"Rest day",
+              "2026-09-10":"Rest day", "2026-09-11":"Lower B", "2026-09-12":"Upper B",
               "2026-09-13":"Rest day" });
+  });
+
+  test("the schedule is Mon, Tue, Fri, Sat — two pairs, long gap mid-week", () => {
+    const a = b({ now: "2026-09-07T09:00:00" });
+    a.tab("plan");
+    const secs = a.all("#view-plan h2.sec").map(a.txt).slice(0, 4);
+    eq(secs, ["Mon — Lower A · knee dominant", "Tue — Upper A · push bias",
+              "Fri — Lower B · hip dominant", "Sat — Upper B · pull bias"]);
+    has(a.txt(a.one("#view-plan .statnote")), "Monday Lower A, Tuesday Upper A, Friday Lower B, Saturday Upper B");
+  });
+
+  test("the done card points at the next session under the new schedule", () => {
+    const days = { "2026-09-08": { ex: { chestpress: { w:59, r:[11,11,10,10], q:[2,2,2,0],
+      g:[false,false,false,false] } }, run: { st:1, en:2 }, updatedAt: 1 } };
+    const a = b({ now: "2026-09-08T20:00:00", days });
+    has(a.txt(a.one(".card.donecard .nextline")), "Lower B");
+    has(a.txt(a.one(".card.donecard .nextline")), "Fri 11 Sep");
   });
 
   test("week numbering survives the October DST change", () => {

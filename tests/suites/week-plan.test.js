@@ -6,9 +6,9 @@ module.exports = (test) => {
     "2026-09-07": { ex: { hacksquat: { w: 97.6, r: [9,9,8,8], q: [2,2,2,0], g: [false,false,false,false] },
                           legcurl:   { w: 73,   r: [12,7,5] } }, updatedAt: 1 },
     "2026-09-08": { ex: { chestpress:{ w: 59, r: [12,12,12,12], q: [2,2,2,0], g: [false,false,false,false] } }, updatedAt: 2 },
-    "2026-09-10": { ex: { legpress:  { w: 145.7, r: [14,9,8,8], q: [0,2,2,0], g: [true,false,false,false] } }, updatedAt: 3 }
+    "2026-09-11": { ex: { legpress:  { w: 145.7, r: [14,9,8,8], q: [0,2,2,0], g: [true,false,false,false] } }, updatedAt: 3 }
   };
-  const week = (days, now) => { const a = boot({ now: (now||"2026-09-11") + "T20:00:00", days }); a.tab("week"); return a; };
+  const week = (days, now) => { const a = boot({ now: (now||"2026-09-12") + "T20:00:00", days }); a.tab("week"); return a; };
 
   test("calibration counts big lifts only, and honesty costs the point", () => {
     const a = week(wk1);
@@ -58,7 +58,7 @@ module.exports = (test) => {
     const a = week(wk1);
     const rows = a.all(".sessline.hist").map(a.txt);
     eq(rows.length, 3);
-    has(rows[0], "10 Sep");
+    has(rows[0], "11 Sep");
     has(rows[2], "7 Sep");
     a.tap(a.all(".sessline.hist")[2]);
     has(a.txt(a.one("#hctxs")), "Mon 7 Sep");
