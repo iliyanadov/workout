@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 43;
+  var BUILD = 44;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -406,6 +406,10 @@
        reachable: it is the weight. A drop-off with reps still inside the range
        stays ambiguous and keeps the "one bad week is noise" guard. */
     var best = prev.got.reduce(function(m,v){ return v>m?v:m; }, 0);
+    if(!ex.bw && base!=null && prev.got.length>=1 && best >= ex.hi+3){
+      var up = Math.max(stp, Math.round(Math.ceil(base*1.1/stp)*stp*10)/10);
+      if(up > base) return { w:up, from:base, on:prev.d, tooLight:best };
+    }
     if(!ex.bw && base!=null && prev.got.length>=1 && best < ex.lo){
       var cut = Math.max(stp, Math.round(Math.floor(base*0.9/stp)*stp*10)/10);
       if(cut < base) return { w:cut, from:base, on:prev.d, tooHeavy:best };
@@ -735,7 +739,9 @@
       t=clamp(t, prev.got[0]-2, prev.got[0]+2);
       t=clamp(t, ex.lo, ex.hi+4);            // the range bounds the derived number
       // …but never at or above what just failed, even if that lands below the range.
-      if(planned(d,ex).tooHeavy!=null) return ex.hi-2;   // new, lighter load: judge it fresh
+      var pl0=planned(d,ex);
+      if(pl0.tooHeavy!=null) return ex.hi-2;            // new, lighter load: judge it fresh
+      if(pl0.tooLight!=null) return ex.hi-1;            // new, heavier load: same
       if(q0===0 || (prev.e.g||[])[0]) t=Math.max(1, Math.min(t, prev.got[0]-1));
       return t;
     }
@@ -1662,6 +1668,13 @@
       keep.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       nrow.appendChild(keep);
       c.appendChild(nrow);
+    } else if(pl.tooLight!=null){
+      var tl=el("div","bumped");
+      tl.appendChild(el("span","", "Best set was "+pl.tooLight+", past the top of "+ex.lo+"–"+ex.hi+
+        " · "+pl.from+" → "+pl.w+" kg"));
+      var keepLight=el("button",null,"Keep "+pl.from);
+      keepLight.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
+      tl.appendChild(keepLight); c.appendChild(tl);
     } else if(pl.tooHeavy!=null){
       var th=el("div","bumped");
       th.appendChild(el("span","", "Best set was "+pl.tooHeavy+", below the "+ex.lo+"–"+ex.hi+
@@ -1755,6 +1768,7 @@
     if(i===0 && !lastDone(sel,ex.id))
       return (ex.bw ? "First time doing these here. " : "First time at this weight. ")+
              target+" comes from the range, not from how you feel.";
+    if(pl.tooLight!=null) return "Heavier on purpose — the last one was not telling you anything.";
     if(pl.tooHeavy!=null) return "Lighter on purpose. "+target+" should feel like there are two more in you.";
     if(pl.needNotch) return "Set the new weight above, then this number applies to it.";
     if(pl.ease) return "Eased after "+pl.ease+" days off. Earn it back.";
