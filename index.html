@@ -241,6 +241,14 @@ h2.sec{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:600;text-tra
 .ptext b{color:var(--ink);font-weight:600}
 .ptext ol{margin:0;padding-left:20px}
 .ptext li{margin-bottom:8px}
+.schedrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft)}
+.schedrow:first-of-type{border-top:0}
+.schedname{font-size:14px;color:var(--ink-2);width:86px;flex-shrink:0}
+.scheddays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;flex:1}
+.schedday{min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);
+  color:var(--faint);font:600 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer;padding:0}
+.schedday.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.schedday.taken{opacity:.45}
 .ptable{width:100%;border-collapse:collapse;font-size:13px}
 .ptable th{text-align:left;font:600 11px/1 "IBM Plex Sans",sans-serif;letter-spacing:.08em;
   text-transform:uppercase;color:var(--muted);padding:0 0 8px}

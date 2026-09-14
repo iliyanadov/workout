@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 42;
+  var BUILD = 43;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -40,7 +40,20 @@
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
   /* Mon, Tue, Fri, Sat. Two pairs of back-to-back days either way; this puts
      the long gap mid-week instead of before Monday. */
-  var BY_DOW = { 1:"lowerA", 2:"upperA", 5:"lowerB", 6:"upperB" };
+  var DEFAULT_SCHED = { lowerA:1, upperA:2, lowerB:5, upperB:6 };
+  function schedAt(d){
+    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=HORIZON; }).sort().reverse();
+    for(var i=0;i<ks.length;i++){
+      var sc=state.days[ks[i]].sched;
+      if(sc && Object.keys(sc).length===4) return sc;
+    }
+    return DEFAULT_SCHED;
+  }
+  function byDow(d){
+    var sc=schedAt(d), m={};
+    ORDER.forEach(function(k){ if(sc[k]!=null) m[sc[k]]=k; });
+    return m;
+  }
 
   var RULES = {
     set: { t:"How to run a set", p:[
@@ -254,11 +267,12 @@
   }
 
   /* ---------------- session for a date ---------------- */
+  function byDow_(d){ return byDow(d); }
   function sessionKey(d){
     if(!inBlock(d)) return null;
     var r = peek(d);
     if(r && r.k) return r.k;
-    var byDow = BY_DOW[parse(d).getDay()];
+    var byDow = byDow_(d)[parse(d).getDay()];
     if(byDow) return byDow;
     /* Reps logged on a day with no session key would otherwise be visible only as
        a dot on the calendar: absent from the day view, the week and the paste,
@@ -2378,7 +2392,7 @@
     var intro=el("div","stat");
     intro.appendChild(el("div","statlab","The block"));
     var sched = ORDER.map(function(k){
-      var d=Object.keys(BY_DOW).filter(function(x){ return BY_DOW[x]===k; })[0];
+      var d=schedAt(today)[k];
       return DOWFULL[d]+" "+PLAN[k].name;
     }).join(", ");
     intro.appendChild(el("div","statnote",
@@ -2386,8 +2400,10 @@
       sched+". Starts "+pretty(ORIGIN)+"."));
     box.appendChild(intro);
 
+    box.appendChild(scheduleCard());
+
     ORDER.forEach(function(k){
-      var s=PLAN[k], d=Object.keys(BY_DOW).filter(function(x){return BY_DOW[x]===k;})[0];
+      var s=PLAN[k], d=schedAt(today)[k];
       box.appendChild(el("h2","sec", DOW[d]+" — "+s.name+" · "+s.sub));
       var wrap=el("div","stat");
       var t=document.createElement("table"); t.className="ptable";
@@ -2420,6 +2436,57 @@
       c.appendChild(t); box.appendChild(c);
     });
     box.dataset.built="1";
+  }
+
+  /* The schedule is the user's to change. Tapping a day that another session
+     owns swaps the two, because that is what moving a session actually means. */
+  function setSchedule(next){
+    var r=day(today);
+    r.sched = next;
+    touch();
+    var box=document.getElementById("planbody");
+    if(box) box.dataset.built="0";
+    render();
+  }
+
+  function scheduleCard(){
+    var cur=schedAt(today);
+    var c=el("div","stat");
+    c.appendChild(el("div","statlab","Schedule · tap a day to move a session"));
+    ORDER.forEach(function(k){
+      var row=el("div","schedrow");
+      row.appendChild(el("div","schedname",PLAN[k].name));
+      var days=el("div","scheddays");
+      for(var dow=1;dow<=7;dow++){
+        var real = dow===7 ? 0 : dow;              // Mon..Sun, with Sunday as 0
+        var owner=null;
+        ORDER.forEach(function(o){ if(cur[o]===real) owner=o; });
+        var b=el("button","schedday"+(owner===k?" on":"")+(owner&&owner!==k?" taken":""),
+                 DOW[real][0]);
+        b.type="button";
+        b.setAttribute("aria-label",PLAN[k].name+" on "+DOWFULL[real]);
+        (function(target,own){
+          b.addEventListener("click",function(){
+            if(own===k) return;
+            var next={}; ORDER.forEach(function(o){ next[o]=cur[o]; });
+            if(own){ next[own]=next[k]; }             // swap, do not double-book
+            next[k]=target;
+            setSchedule(next);
+          });
+        })(real,owner);
+        days.appendChild(b);
+      }
+      row.appendChild(days);
+      c.appendChild(row);
+    });
+    var foot=el("div","cardfoot");
+    foot.appendChild(el("div","statnote","Changes apply from today. Sessions already logged keep the day they were done on."));
+    c.appendChild(foot);
+    var same=ORDER.every(function(k){ return cur[k]===DEFAULT_SCHED[k]; });
+    if(!same) c.appendChild(quiet("Back to Mon · Tue · Fri · Sat",function(){
+      setSchedule(JSON.parse(JSON.stringify(DEFAULT_SCHED)));
+    }));
+    return c;
   }
 
   /* ---------------- tabs, nav, rollover ---------------- */
