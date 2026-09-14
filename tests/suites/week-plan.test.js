@@ -26,8 +26,19 @@ module.exports = (test) => {
   });
 
   test("goes-up will not name a weight before the machine's notch is known", () => {
-    const a = week(wk1);
+    // The hip thrust is not on a stack we have ever been shown, and nobody has
+    // typed its step. Inventing 65.2 kg would be worse than admitting that.
+    const days = JSON.parse(JSON.stringify(wk1));
+    days["2026-09-11"].ex.hipthrust = { w: 62.7, r: [12,12], q: [2,0], g: [false,false] };
+    const a = week(days);
     has(a.txt(a.one("#weekbody")), "the next notch up");
+  });
+
+  test("goes-up names the real hole on a machine whose stack we know", () => {
+    // 59 is a hole on the pin stack and the one above it is 66, not 61.5.
+    const a = week(wk1);
+    has(a.txt(a.one("#weekbody")), "66 kg");
+    hasNot(a.txt(a.one("#weekbody")), "the next notch up");
   });
 
   test("goes-up names the exact weight once the notch is learned", () => {

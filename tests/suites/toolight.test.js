@@ -21,7 +21,7 @@ module.exports = (test) => {
 
   test("a best set well past the top of the range raises the weight", () => {
     const a = walkTo(open(day({ legcurl: { w: 59, r: [16,14,10] } })), "Seated Leg Curl");
-    eq(a.load(), "65", "59 x 1.1 rounded up to the 2.5 ladder");
+    eq(a.load(), "66", "59 x 1.1 = 64.9, and the next hole on the stack is 66 — not 65");
     has(a.txt(a.one(".card.open .bumped")), "past the top of 8–12");
   });
 
@@ -33,7 +33,9 @@ module.exports = (test) => {
 
   test("two past the top is not enough — that is just a good session", () => {
     const a = walkTo(open(day({ legcurl: { w: 59, r: [14,13,12] } })), "Seated Leg Curl");
-    eq(a.load(), "59", "14 on an 8-12 stays put; the normal bump rule owns this");
+    const pill = a.txt(a.one(".card.open .bumped"));
+    hasNot(pill, "past the top of", "14 on an 8-12 is not a too-light raise");
+    has(pill, "Earned it", "it is the ordinary last-set-hit-the-top bump, and that owns it");
   });
 
   test("the raised load is judged fresh, from the range", () => {

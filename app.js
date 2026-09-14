@@ -5,37 +5,48 @@
 (function () {
   "use strict";
 
-  var BUILD = 44;
+  var BUILD = 45;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
+
+  /* What the pin stacks in this gym can physically be set to. The plates are
+     labelled in POUNDS with a kilo conversion printed beside them, so the kilo
+     column is not evenly spaced: a constant 15 lb hole reads 7, 7, 7, 7, 6 in
+     kilos. Rounding a target "to the nearest 2.5" therefore invents loads no pin
+     can reach — which is how the leg curl came to be told to load 65 kg on a
+     stack whose holes are 59 and 66. Photographed at the gym 14 Sep 2026. */
+  var LADDERS = {
+    pin15: { n:"pin stack · 15 lb holes",
+             kg:[11,18,25,32,39,45,52,59,66,73,79,86,93,100,107,113] }
+  };
 
   var PLAN = {
     lowerA: { name: "Lower A", sub: "knee dominant", ex: [
       { id:"hacksquat", n:"Hack Squat",          s:4, lo:6,  hi:10, w:97.6,  step:2.5, big:1, reset:1, pat:"legs" },
-      { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
+      { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
       { id:"legext",    n:"Leg Extension",       s:2, lo:12, hi:20, w:null,  step:2.5 },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperA: { name: "Upper A", sub: "push bias", ex: [
-      { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push" },
-      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull" },
+      { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push", lad:"pin15" },
+      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, pat:"pull", lad:"pin15" },
       { id:"incline",   n:"Incline DB Press",    s:3, lo:8,  hi:12, w:24,    step:2,   big:1, db:1 },
       { id:"pushdown",  n:"Triceps Rope Pushdown", s:3, lo:10, hi:15, w:null,  step:2.5 },
-      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 },
+      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5, lad:"pin15" },
       { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2, db:1 } ] },
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
       { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
-      { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1 },
+      { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
       { id:"hipthrust", n:"Hip Thrust",          s:2, lo:8,  hi:12, w:62.7,  step:2.5 },
-      { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5 },
+      { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5, lad:"pin15" },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
-      { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull" },
-      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1 },
+      { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull", lad:"pin15" },
+      { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, lad:"pin15" },
       { id:"dips",      n:"Dips",                s:3, lo:8,  hi:12, w:null,  step:2.5, bw:1, big:1 },
       { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1, db:1 },
-      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5 } ] }
+      { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5, lad:"pin15" } ] }
   };
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
   /* Mon, Tue, Fri, Sat. Two pairs of back-to-back days either way; this puts
@@ -379,6 +390,63 @@
   /* The learned step if we have one, otherwise PLAN's guess. */
   function stepOf(d,ex){ var st=stepFor(d,ex.id); return st!=null ? st : ex.step; }
 
+  /* Which stack a machine is on. Same most-recent-first scan as the step, so the
+     user can correct it from the Plan tab and the answer syncs everywhere. An
+     explicit "" means they have told us it is NOT a stack, and that must beat
+     whatever PLAN assumed. */
+  function ladKeyFor(d,id){
+    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=HORIZON; }).sort().reverse();
+    for(var i=0;i<ks.length;i++){
+      var e=state.days[ks[i]].ex && state.days[ks[i]].ex[id];
+      if(e && e.ld!=null) return e.ld;
+    }
+    return null;
+  }
+  /* Precedence, strictest first: anything the user told us about this machine
+     beats anything the app assumed about it. An explicit stack from the Plan tab
+     wins outright; a step they typed at the machine is direct evidence of that
+     machine and beats PLAN's assumed stack; only then does the assumption apply. */
+  function ladOf(d,ex){
+    var k=ladKeyFor(d,ex.id);
+    if(k!=null) return LADDERS[k] ? k : null;
+    if(stepFor(d,ex.id)!=null) return null;
+    return (ex.lad && LADDERS[ex.lad]) ? ex.lad : null;
+  }
+  function rungsOf(d,ex){ var k=ladOf(d,ex); return k ? LADDERS[k].kg : null; }
+
+  /* The next hole up / down. null past either end of the stack, so the caller
+     falls back to its step instead of pretending the machine goes higher. */
+  function rungUp(r,w){ for(var i=0;i<r.length;i++) if(r[i]>w+1e-9) return r[i]; return null; }
+  function rungDown(r,w){ for(var i=r.length-1;i>=0;i--) if(r[i]<w-1e-9) return r[i]; return null; }
+
+  /* Turn a computed target into a load the machine can actually hold. dir +1
+     lands at or above the target, -1 at or below. Falls back to the step when
+     the target runs off either end of the stack. */
+  function reachable(d,ex,target,dir){
+    var r=rungsOf(d,ex), hit=null, i;
+    if(r){
+      if(dir>0){ for(i=0;i<r.length;i++) if(r[i]>=target-1e-9){ hit=r[i]; break; } }
+      else     { for(i=r.length-1;i>=0;i--) if(r[i]<=target+1e-9){ hit=r[i]; break; } }
+      /* The hole found is always past the target, and the target is always past
+         base, so this can never hand back the weight we started from. */
+      if(hit!=null) return hit;
+      /* Off the end of the stack; fall through to the step. */
+    }
+    var stp=stepOf(d,ex);
+    var v = dir>0 ? Math.ceil(target/stp)*stp : Math.floor(target/stp)*stp;
+    return Math.max(stp, Math.round(v*10)/10);
+  }
+
+  /* One notch up on this machine, or null if we have never been told what that
+     is. The stack knows; a guessed step does not count. */
+  function nextUpFor(d,ex,w){
+    if(w==null) return null;
+    var r=rungsOf(d,ex);
+    if(r){ var n=rungUp(r,w); if(n!=null) return n; }
+    var st=stepFor(d,ex.id);
+    return st!=null ? Math.round((w+st)*10)/10 : null;
+  }
+
   /* Days since this exercise was last actually done. */
   function gapSince(d,id,prev){
     prev = prev || lastDone(d,id);
@@ -397,7 +465,7 @@
     var stp = stepOf(d,ex);
     var since = gapSince(d, ex.id, prev);
     if(ex.big && !ex.bw && base!=null && since>=16){
-      var eased = Math.max(stp, Math.round(Math.floor(base*0.9/stp)*stp*10)/10);
+      var eased = reachable(d,ex,base*0.9,-1);
       if(eased<base) return { w:eased, from:base, on:prev.d, ease:since };
     }
     /* The plan's own too-heavy rule, finally implemented — but only for the
@@ -407,16 +475,17 @@
        stays ambiguous and keeps the "one bad week is noise" guard. */
     var best = prev.got.reduce(function(m,v){ return v>m?v:m; }, 0);
     if(!ex.bw && base!=null && prev.got.length>=1 && best >= ex.hi+3){
-      var up = Math.max(stp, Math.round(Math.ceil(base*1.1/stp)*stp*10)/10);
+      var up = reachable(d,ex,base*1.1,1);
       if(up > base) return { w:up, from:base, on:prev.d, tooLight:best };
     }
     if(!ex.bw && base!=null && prev.got.length>=1 && best < ex.lo){
-      var cut = Math.max(stp, Math.round(Math.floor(base*0.9/stp)*stp*10)/10);
+      var cut = reachable(d,ex,base*0.9,-1);
       if(cut < base) return { w:cut, from:base, on:prev.d, tooHeavy:best };
     }
     var earned = earnsBump(ex, prev.e);
     if(earned && base!=null){
-      if(stepFor(d,ex.id)!=null) return { w:Math.round((base+stp)*10)/10, from:base, on:prev.d };
+      var nx = nextUpFor(d,ex,base);
+      if(nx!=null) return { w:nx, from:base, on:prev.d };
       /* We have never been shown this machine's ladder. Ask, rather than invent
          a number like 100.1 that no pin stack can be set to. */
       return { w:base, from:base, on:prev.d, needNotch:true };
@@ -757,8 +826,18 @@
     var order=sessionOrder(d); if(!order.length) return null;
     var ex=order[0]; if(!ex.big||ex.w==null) return null;
     var w=planned(d,ex).w; if(w==null) return null;
-    var stp=stepOf(d,ex);
-    function rnd(p){ var v=Math.round(w*p/stp)*stp; return Math.round(v*10)/10; }
+    var stp=stepOf(d,ex), rungs=rungsOf(d,ex);
+    function rnd(p){
+      var t=w*p;
+      if(rungs){
+        /* A warm-up you cannot set the pin to is not a warm-up. Nearest hole
+           below the working weight. */
+        var best=null,bd=Infinity;
+        rungs.forEach(function(v){ var dd=Math.abs(v-t); if(v<w && dd<bd){ bd=dd; best=v; } });
+        if(best!=null) return best;
+      }
+      var v=Math.round(t/stp)*stp; return Math.round(v*10)/10;
+    }
     return { ex:ex, rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
                            {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w, approx:1 };
   }
@@ -1887,9 +1966,9 @@
       var rec=peekEx(sel,ex.id); if(!rec) return;
       var got=reps(rec);
       if(earnsBump(ex,rec)){
-        var stw=stepFor(sel,ex.id);
-        ups.push(ex.n+"  "+(rec.w!=null && stw!=null
-          ? rec.w+" → "+Math.round((rec.w+stw)*10)/10+" kg"
+        var nxw=nextUpFor(sel,ex,rec.w);
+        ups.push(ex.n+"  "+(nxw!=null
+          ? rec.w+" → "+nxw+" kg"
           : "up one notch — the app will ask what that is"));
       }
     });
@@ -2089,7 +2168,7 @@
         var drop=got[0]-got[got.length-1];
         if(counts(ex,e)){ total++; if(calibOK(ex,e)) held++; }
         if(earnsBump(ex,e))
-          ups.push({n:ex.n,id:ex.id,from:e.w,step:ex.step,last:got[got.length-1]});
+          ups.push({n:ex.n,id:ex.id,ex:ex,from:e.w,last:got[got.length-1]});
         if(counts(ex,e) && !calibOK(ex,e))
           watch.push({n:ex.n,reps:got,grind:!heldBack(e),at:grindAt(e)});
         var gAligned=[], rr=e.r||[];
@@ -2159,9 +2238,8 @@
       st.ups.forEach(function(x){
         var r=el("div","sessline");
         r.appendChild(el("span","sesslab", x.from!=null? x.from+" kg":"—"));
-        var stU=stepFor(sel,x.id);
-        r.appendChild(el("span","reps","→ "+((x.from!=null && stU!=null)
-          ? (Math.round((x.from+stU)*10)/10)+" kg" : "the next notch up")));
+        var nxU=nextUpFor(sel,x.ex,x.from);
+        r.appendChild(el("span","reps","→ "+(nxU!=null ? nxU+" kg" : "the next notch up")));
         r.appendChild(el("span","exlab", x.n+" · last set "+x.last));
         u.appendChild(r);
       });
@@ -2415,6 +2493,7 @@
     box.appendChild(intro);
 
     box.appendChild(scheduleCard());
+    box.appendChild(machinesCard());
 
     ORDER.forEach(function(k){
       var s=PLAN[k], d=schedAt(today)[k];
@@ -2450,6 +2529,50 @@
       c.appendChild(t); box.appendChild(c);
     });
     box.dataset.built="1";
+  }
+
+  /* Which stack a machine is on is the user's to set, standing in front of it.
+     Stored exactly like the schedule and the learned step: on today's record,
+     read most-recent-first, so it syncs to every device with no new schema. */
+  function setLadder(id,key){
+    var r=entry(today,id);
+    r.ld = key;
+    touch();
+    var box=document.getElementById("planbody");
+    if(box) box.dataset.built="0";
+    render();
+  }
+
+  /* What the app believes each machine can be set to, and one tap to correct it.
+     Without this the only way to fix a wrong ladder is to message me a photo of
+     the stack — which is precisely how this feature came to exist. */
+  function machinesCard(){
+    var c=el("div","stat");
+    c.appendChild(el("div","statlab","Machines · what each one can be set to"));
+    var seen={}, rows=[];
+    ORDER.forEach(function(k){ PLAN[k].ex.forEach(function(ex){
+      if(ex.bw || ex.db || seen[ex.id]) return; seen[ex.id]=1; rows.push(ex); }); });
+    rows.forEach(function(ex){
+      var r=el("div","machrow");
+      r.appendChild(el("div","machname",ex.n));
+      var on=ladOf(today,ex), st=stepFor(today,ex.id);
+      var b=el("button","machbtn"+(on?" on":""));
+      b.type="button";
+      b.textContent = on ? LADDERS[on].n
+                    : st!=null ? "steps of "+st+" kg"
+                    : "not set · assuming "+ex.step+" kg";
+      b.setAttribute("aria-label", ex.n+" — "+b.textContent+". Tap to change.");
+      b.addEventListener("click",function(){ setLadder(ex.id, on ? "" : "pin15"); });
+      r.appendChild(b);
+      c.appendChild(r);
+    });
+    c.appendChild(el("div","statnote",
+      "Tap one to move it on or off the pin stack. That stack is labelled in pounds, so its "+
+      "kilo holes are "+LADDERS.pin15.kg.slice(5,10).join(" · ")+" — 15 lb apart, which is not an even "+
+      "number of kilos. Knowing this is what stops the app prescribing a weight no pin can reach. "+
+      "A step you type at the machine beats whatever is set here; dumbbells and plate-loaded "+
+      "machines are not listed because they have no stack."));
+    return c;
   }
 
   /* The schedule is the user's to change. Tapping a day that another session

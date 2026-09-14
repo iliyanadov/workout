@@ -2,13 +2,15 @@ const { boot } = require("../harness.js");
 const { eq, ok, no, has, hasNot } = require("../assert.js");
 
 /* The warm-up is guided the same way the session is: one set on screen, a Done
-   button, then the same inline countdown. */
+   button, then the same inline countdown. The loads are half and three-quarters
+   of the working weight SNAPPED TO A REAL HOLE — on a pin stack "about 37.5 kg"
+   is not a thing you can set, so the pulldown ramps 39 / 52 rather than 37.5 / 55. */
 module.exports = (test) => {
   const SESSIONS = [
     ["Lower A","2026-09-07","Hack Squat",           [50, 72.5], "97.6"],
-    ["Upper A","2026-09-08","Machine Chest Press",  [30, 45],   "59"],
+    ["Upper A","2026-09-08","Machine Chest Press",  [32, 45],   "59"],
     ["Lower B","2026-09-11","Leg Press",            [75, 110],  "145.7"],
-    ["Upper B","2026-09-12","Lat Pulldown",         [37.5, 55], "73"],
+    ["Upper B","2026-09-12","Lat Pulldown",         [39, 52],   "73"],
   ];
 
   for (const [name, day, exName, loads, top] of SESSIONS) {

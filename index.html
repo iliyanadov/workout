@@ -224,6 +224,12 @@ textarea::placeholder{color:var(--faint)}
   font-variant-numeric:tabular-nums;margin:8px 0 4px}
 .bignum small{font-size:23px;color:var(--muted)}
 .statnote{font-size:13px;color:var(--muted);line-height:1.5}
+.machrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line-soft)}
+.machrow:first-of-type{border-top:0}
+.machname{flex:1;min-width:0;font-size:13px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.machbtn{flex-shrink:0;border:1px solid var(--line);background:transparent;color:var(--muted);
+  font:500 12px/1.3 "IBM Plex Sans",sans-serif;padding:9px 11px;border-radius:9px;min-height:40px;text-align:right}
+.machbtn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .sessline{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
 .sessline:first-child{border-top:0}
 .sesslab{font:600 12px/1 "IBM Plex Sans",sans-serif;width:66px;flex-shrink:0;color:var(--ink-2)}
