@@ -26,10 +26,10 @@ module.exports = (test) => {
   });
 
   test("goes-up will not name a weight before the machine's notch is known", () => {
-    // The hip thrust is not on a stack we have ever been shown, and nobody has
-    // typed its step. Inventing 65.2 kg would be worse than admitting that.
+    // The calf press is not on a stack we have ever been shown, and nobody has
+    // typed its step. Inventing 102.9 kg would be worse than admitting that.
     const days = JSON.parse(JSON.stringify(wk1));
-    days["2026-09-11"].ex.hipthrust = { w: 62.7, r: [12,12], q: [2,0], g: [false,false] };
+    days["2026-09-11"].ex.calf = { w: 100.4, r: [15,15,15], q: [2,2,0], g: [false,false,false] };
     const a = week(days);
     has(a.txt(a.one("#weekbody")), "the next notch up");
   });

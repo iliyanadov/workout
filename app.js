@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 45;
+  var BUILD = 46;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -37,7 +37,7 @@
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
       { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
-      { id:"hipthrust", n:"Hip Thrust",          s:2, lo:8,  hi:12, w:62.7,  step:2.5 },
+      { id:"hipabd",    n:"Hip Abduction",       s:2, lo:10, hi:15, w:null,  step:2.5, lad:"pin15" },
       { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5, lad:"pin15" },
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
@@ -49,6 +49,20 @@
       { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5, lad:"pin15" } ] }
   };
   var ORDER = ["lowerA","upperA","lowerB","upperB"];
+  /* Lifts that have left the plan. They are never in PLAN or ORDER, so they are
+     never prescribed again — but history still has to be able to name and score
+     them. Without this, dropping an exercise silently blanks sessions that were
+     really done, and the app's one promise is that it holds everything. */
+  var RETIRED = {
+    hipthrust: { id:"hipthrust", n:"Hip Thrust", s:2, lo:8, hi:12, w:62.7, step:2.5, gone:"2026-09-16" }
+  };
+  /* Any exercise the app has ever prescribed, current or not. */
+  var ALL_EX = (function(){
+    var m={};
+    Object.keys(RETIRED).forEach(function(id){ m[id]=RETIRED[id]; });
+    ORDER.forEach(function(k){ PLAN[k].ex.forEach(function(e){ m[e.id]=e; }); });
+    return m;
+  })();
   /* Mon, Tue, Fri, Sat. Two pairs of back-to-back days either way; this puts
      the long gap mid-week instead of before Monday. */
   var DEFAULT_SCHED = { lowerA:1, upperA:2, lowerB:5, upperB:6 };
@@ -2176,6 +2190,19 @@
           if(rr[ii]!=null && rr[ii]!=="") gAligned.push(!!(e.g||[])[ii]);
         lines.push({d:ds,n:ex.n,w:e.w,reps:got,g:gAligned});
       });
+      /* Anything logged that day which the session no longer prescribes — a
+         retired lift, or one moved to another day. It still shows in history;
+         it never earns a bump or a watch line, because it is not programmed. */
+      Object.keys(rec.ex||{}).forEach(function(id){
+        if(sess.ex.some(function(x){ return x.id===id; })) return;
+        var ex=ALL_EX[id], e=rec.ex[id]; if(!ex) return;
+        var got=reps(e); if(!got.length) return;
+        any=true;
+        var gA=[], rr=e.r||[];
+        for(var ii=0;ii<rr.length;ii++)
+          if(rr[ii]!=null && rr[ii]!=="") gA.push(!!(e.g||[])[ii]);
+        lines.push({d:ds,n:ex.n,w:e.w,reps:got,g:gA});
+      });
       if(any) done++;
     }
     return {held:held,total:total,ups:ups,watch:watch,done:done,lines:lines};
@@ -2417,8 +2444,7 @@
   /* Calibration by month, using counts() and calibOK() verbatim — the same
      definitions the card above prints, so the two can never disagree. */
   function monthRollup(){
-    var byId={};
-    ORDER.forEach(function(k){ PLAN[k].ex.forEach(function(e){ byId[e.id]=e; }); });
+    var byId=ALL_EX;
     var months={};
     Object.keys(state.days).forEach(function(d){
       if(d<HORIZON) return;
