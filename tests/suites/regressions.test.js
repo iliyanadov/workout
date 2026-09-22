@@ -109,11 +109,17 @@ module.exports = (test) => {
   });
 
   test("b21: nothing invents a weight the machine cannot be set to", () => {
+    // Once we know the sled is 47.6 kg and the plates are 1.25s, 100.1 stops
+    // being an invented number and becomes 25 + 1.25 a side. Every weight the
+    // app offers on this machine must be 47.6 + a whole number of 2.5s.
     const a = boot({ now: "2026-09-14T09:00:00",
       days: day({ hacksquat: { w: 97.6, r: [10,10,10,10], q: [2,2,2,0], g: [false,false,false,false] } }) });
     a.start().warmup();
-    hasNot(a.txt(a.one(".card.open")), "100.1");
-    has(a.txt(a.one(".card.open .bumped")), "next weight up");
+    const w = parseFloat(a.load());
+    const plates = (w - 47.6) / 2.5;
+    ok(Math.abs(plates - Math.round(plates)) < 1e-9 && plates >= 0,
+       w + " kg cannot be loaded: it is not 47.6 plus a whole number of 2.5 kg pairs");
+    eq(a.load(), "100.1", "one notch up from 97.6 on this machine");
   });
 
   test("b23: the captures card is not a one-way door", () => {

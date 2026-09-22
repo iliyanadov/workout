@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 46;
+  var BUILD = 47;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -22,10 +22,10 @@
 
   var PLAN = {
     lowerA: { name: "Lower A", sub: "knee dominant", ex: [
-      { id:"hacksquat", n:"Hack Squat",          s:4, lo:6,  hi:10, w:97.6,  step:2.5, big:1, reset:1, pat:"legs" },
+      { id:"hacksquat", n:"Hack Squat",          s:4, lo:6,  hi:10, w:97.6,  step:2.5, big:1, reset:1, pat:"legs", base:47.6 },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
       { id:"legext",    n:"Leg Extension",       s:2, lo:12, hi:20, w:null,  step:2.5 },
-      { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
+      { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5, base:30.4 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperA: { name: "Upper A", sub: "push bias", ex: [
       { id:"chestpress",n:"Machine Chest Press", s:4, lo:8,  hi:12, w:59,    step:2.5, big:1, pat:"push", lad:"pin15" },
@@ -39,7 +39,7 @@
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
       { id:"hipabd",    n:"Hip Abduction",       s:2, lo:10, hi:15, w:null,  step:2.5, lad:"pin15" },
       { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5, lad:"pin15" },
-      { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5 },
+      { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5, base:30.4 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
       { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull", lad:"pin15" },
@@ -428,6 +428,35 @@
   }
   function rungsOf(d,ex){ var k=ladOf(d,ex); return k ? LADDERS[k].kg : null; }
 
+  /* A plate-loaded machine does not count up from zero. The hack squat's sled
+     weighs 47.6 kg with nothing on it, and plates go on in pairs, so the loads
+     that exist are 47.6 + 2.5n and NOTHING below 47.6 exists at all. Rounding a
+     target to a multiple of the step measures from zero, which is how the app
+     came to prescribe a 35 kg warm-up on a machine whose lightest possible
+     setting is 47.6, and a 67.5 kg working weight the user has to correct to
+     67.6 by hand every session. Same most-recent-first scan as the step. */
+  function baseFor(d,id){
+    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=HORIZON; }).sort().reverse();
+    for(var i=0;i<ks.length;i++){
+      var e=state.days[ks[i]].ex && state.days[ks[i]].ex[id];
+      if(e && e.bs!=null) return e.bs;      // 0 means "no base" and must beat PLAN
+    }
+    return null;
+  }
+  function baseOf(d,ex){
+    var b=baseFor(d,ex.id);
+    if(b!=null) return b>0 ? b : null;      // anything stored wins, including a zero
+    return ex.base>0 ? ex.base : null;
+  }
+  /* The next load up from w on a based machine, snapping w onto the machine
+     first — a weight carried over from before we knew the base may not exist. */
+  function upFrom(d,ex,b,w){
+    var stp=stepOf(d,ex);
+    var n=Math.floor((w-b)/stp + 1e-9); if(n<0) n=-1;
+    var up=Math.round((b+(n+1)*stp)*10)/10;
+    return up>w+1e-9 ? up : Math.round((up+stp)*10)/10;
+  }
+
   /* The next hole up / down. null past either end of the stack, so the caller
      falls back to its step instead of pretending the machine goes higher. */
   function rungUp(r,w){ for(var i=0;i<r.length;i++) if(r[i]>w+1e-9) return r[i]; return null; }
@@ -437,6 +466,13 @@
      lands at or above the target, -1 at or below. Falls back to the step when
      the target runs off either end of the stack. */
   function reachable(d,ex,target,dir){
+    var b=baseOf(d,ex);
+    if(b!=null){
+      var bstp=stepOf(d,ex);
+      var n = dir>0 ? Math.ceil((target-b)/bstp - 1e-9) : Math.floor((target-b)/bstp + 1e-9);
+      if(n<0) n=0;                     // nothing lighter than the empty machine exists
+      return Math.round((b+n*bstp)*10)/10;
+    }
     var r=rungsOf(d,ex), hit=null, i;
     if(r){
       if(dir>0){ for(i=0;i<r.length;i++) if(r[i]>=target-1e-9){ hit=r[i]; break; } }
@@ -455,6 +491,8 @@
      is. The stack knows; a guessed step does not count. */
   function nextUpFor(d,ex,w){
     if(w==null) return null;
+    var b=baseOf(d,ex);
+    if(b!=null) return upFrom(d,ex,b,w);
     var r=rungsOf(d,ex);
     if(r){ var n=rungUp(r,w); if(n!=null) return n; }
     var st=stepFor(d,ex.id);
@@ -840,7 +878,19 @@
     var order=sessionOrder(d); if(!order.length) return null;
     var ex=order[0]; if(!ex.big||ex.w==null) return null;
     var w=planned(d,ex).w; if(w==null) return null;
-    var stp=stepOf(d,ex), rungs=rungsOf(d,ex);
+    var stp=stepOf(d,ex), rungs=rungsOf(d,ex), base=baseOf(d,ex);
+    if(base!=null){
+      /* You cannot warm up at half of 67.6 when the empty sled is 47.6. The
+         bare machine is the lightest set that exists, so it is set one, and set
+         two splits the difference to the working weight. */
+      var mid=reachable(d,ex,(base+w)/2,-1);
+      if(!(mid>base && mid<w)) mid=base;
+      return { ex:ex, exact:1, rows:[
+        {w:base,reps:8,why:"the bare machine, nothing on it — this is as light as it goes"},
+        {w:mid, reps:5,why: mid>base ? "the last rep should still be easy"
+                                     : "again — the working weight is barely above the empty machine"} ],
+        top:w };
+    }
     function rnd(p){
       var t=w*p;
       if(rungs){
@@ -852,8 +902,9 @@
       }
       var v=Math.round(t/stp)*stp; return Math.round(v*10)/10;
     }
-    return { ex:ex, rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
-                           {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w, approx:1 };
+    return { ex:ex, exact:rungs?1:0,
+             rows:[ {w:rnd(.5),reps:8,why:"half the working weight — should feel like nothing"},
+                    {w:rnd(.75),reps:5,why:"the last rep should still be easy"} ], top:w };
   }
 
   function minsLeft(d){
@@ -1580,12 +1631,13 @@
     if(resting){
       c.appendChild(warmRestPanel(ramp,i,rows));
     } else {
-      c.appendChild(el("div","hero fail","ABOUT "+row.w+" KG"));
+      var about = ramp.exact ? "" : "ABOUT ";
+      c.appendChild(el("div","hero fail",about+row.w+" KG"));
       c.appendChild(el("div","herosub",row.reps+" reps · "+row.why));
       c.appendChild(bigBtn("Done — "+row.w+" kg × "+row.reps,"go",function(){
         local.warmTicks=local.warmTicks||[]; local.warmTicks[i]=1;
         var next = rows[i+1]
-          ? "Next — about "+rows[i+1].w+" kg × "+rows[i+1].reps
+          ? "Next — "+(ramp.exact?"":"about ")+rows[i+1].w+" kg × "+rows[i+1].reps
           : "Next — "+ramp.ex.n+", "+ramp.top+" kg";
         beginWarmRest(ramp.ex.n+" warm-up", REST.warm, next);
         render();
@@ -2581,15 +2633,23 @@
     rows.forEach(function(ex){
       var r=el("div","machrow");
       r.appendChild(el("div","machname",ex.n));
-      var on=ladOf(today,ex), st=stepFor(today,ex.id);
-      var b=el("button","machbtn"+(on?" on":""));
-      b.type="button";
-      b.textContent = on ? LADDERS[on].n
-                    : st!=null ? "steps of "+st+" kg"
-                    : "not set · assuming "+ex.step+" kg";
-      b.setAttribute("aria-label", ex.n+" — "+b.textContent+". Tap to change.");
-      b.addEventListener("click",function(){ setLadder(ex.id, on ? "" : "pin15"); });
-      r.appendChild(b);
+      var on=ladOf(today,ex), st=stepFor(today,ex.id), bs=baseOf(today,ex);
+      if(bs!=null){
+        var lbl=el("div","machbtn on");
+        lbl.textContent="empty "+bs+" kg, then "+stepOf(today,ex)+" kg";
+        lbl.setAttribute("aria-label", ex.n+" — plate loaded. The bare machine weighs "+
+          bs+" kg and the smallest pair of plates adds "+stepOf(today,ex)+" kg.");
+        r.appendChild(lbl);
+      } else {
+        var b=el("button","machbtn"+(on?" on":""));
+        b.type="button";
+        b.textContent = on ? LADDERS[on].n
+                      : st!=null ? "steps of "+st+" kg"
+                      : "not set · assuming "+ex.step+" kg";
+        b.setAttribute("aria-label", ex.n+" — "+b.textContent+". Tap to change.");
+        b.addEventListener("click",function(){ setLadder(ex.id, on ? "" : "pin15"); });
+        r.appendChild(b);
+      }
       c.appendChild(r);
     });
     c.appendChild(el("div","statnote",
@@ -2597,7 +2657,9 @@
       "kilo holes are "+LADDERS.pin15.kg.slice(5,10).join(" · ")+" — 15 lb apart, which is not an even "+
       "number of kilos. Knowing this is what stops the app prescribing a weight no pin can reach. "+
       "A step you type at the machine beats whatever is set here; dumbbells and plate-loaded "+
-      "machines are not listed because they have no stack."));
+      "machines are not listed because they have no stack. A plate-loaded machine shows the "+
+      "weight of the bare machine instead — nothing below that exists, and every load is that "+
+      "number plus plates."));
     return c;
   }
 

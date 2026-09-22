@@ -66,10 +66,11 @@ module.exports = (test) => {
   });
 
   test("a machine that is not on the stack keeps its own step", () => {
-    // The hack squat is plate-loaded. 77.6 x 0.9 rounded down the 2.5 ladder.
+    // The hack squat is plate-loaded: a 47.6 kg sled plus 2.5 kg pairs, nothing
+    // like the pin stack's 7 kg holes. 77.6 x 0.9 = 69.84 lands on 67.6.
     const a = walkTo(open(day("2026-09-07", { hacksquat: { w: 77.6, r: [5,4,4,4],
       q: [2,2,2,0], g: [false,false,false,false] } }), "2026-09-14T09:00:00"), "Hack Squat");
-    eq(a.load(), "67.5", "the stack must not leak onto machines it does not describe");
+    eq(a.load(), "67.6", "the stack must not leak onto machines it does not describe");
   });
 
   test("past the top of the stack it falls back to the step", () => {

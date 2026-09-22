@@ -82,8 +82,13 @@ module.exports = (test) => {
   });
 
   test("the card asking for a notch does not also claim the weight is new", () => {
-    const a = boot({ now: "2026-09-14T09:00:00", days: hack([10,10,10,10],[2,2,2,0]) });
+    // Has to be a machine we have never been shown — the hack squat's sled and
+    // plates are known now, so it names the weight instead of asking.
+    const a = boot({ now: "2026-09-18T09:00:00", days: { "2026-09-11": { ex: {
+      legpress: { w: 145.7, r: [15,15,15,15], q: [2,2,2,0],
+                  g: [false,false,false,false] } }, updatedAt: 1 } } });
     a.start().warmup();
+    has(a.txt(a.one(".card.open .bumped")), "next weight up");
     hasNot(a.txt(a.one(".card.open .herosub")), "New weight");
   });
 

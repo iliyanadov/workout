@@ -3,24 +3,30 @@ const { eq, ok, no, has, hasNot } = require("../assert.js");
 
 /* The warm-up is guided the same way the session is: one set on screen, a Done
    button, then the same inline countdown. The loads are half and three-quarters
-   of the working weight SNAPPED TO A REAL HOLE — on a pin stack "about 37.5 kg"
-   is not a thing you can set, so the pulldown ramps 39 / 52 rather than 37.5 / 55. */
+   of the working weight SNAPPED TO SOMETHING THE MACHINE CAN ACTUALLY BE SET TO.
+   On a pin stack "about 37.5 kg" is not a thing, so the pulldown ramps 39 / 52.
+   On the hack squat, whose sled is 47.6 kg empty, half of 97.6 does not exist at
+   all — the bare machine is the lightest set there is, so it ramps 47.6 / 72.6. */
 module.exports = (test) => {
   const SESSIONS = [
-    ["Lower A","2026-09-07","Hack Squat",           [50, 72.5], "97.6"],
-    ["Upper A","2026-09-08","Machine Chest Press",  [32, 45],   "59"],
-    ["Lower B","2026-09-11","Leg Press",            [75, 110],  "145.7"],
-    ["Upper B","2026-09-12","Lat Pulldown",         [39, 52],   "73"],
+    // exact=1 where we know the machine: a plate count and a pin hole are not
+    // approximations. The leg press is the one machine we have never been shown,
+    // so it is the only ramp still allowed to say "about".
+    ["Lower A","2026-09-07","Hack Squat",           [47.6, 72.6], "97.6",  1],
+    ["Upper A","2026-09-08","Machine Chest Press",  [32, 45],     "59",    1],
+    ["Lower B","2026-09-11","Leg Press",            [75, 110],    "145.7", 0],
+    ["Upper B","2026-09-12","Lat Pulldown",         [39, 52],     "73",    1],
   ];
 
-  for (const [name, day, exName, loads, top] of SESSIONS) {
+  for (const [name, day, exName, loads, top, exact] of SESSIONS) {
+    const kg = v => (exact ? "" : "ABOUT ") + v + " KG";
     test(name + ": one set at a time, and it names the lift", () => {
       const a = boot({ now: day + "T09:00:00" });
       a.start();
       eq(a.txt(a.one(".card.warm .cardname")), "Warm up");
       eq(a.txt(a.one(".card.warm .cardtag")), "SET 1 OF 2");
       eq(a.txt(a.one(".card.warm .lastline")), exName);
-      eq(a.txt(a.one(".card.warm .hero")), "ABOUT " + loads[0] + " KG");
+      eq(a.txt(a.one(".card.warm .hero")), kg(loads[0]));
       has(a.txt(a.one(".card.warm .herosub")), "8 reps");
     });
 
@@ -40,7 +46,7 @@ module.exports = (test) => {
       a.tap(".card.warm .runbtn");
       a.tap(".card.warm .quietbtn", "Skip rest");
       eq(a.txt(a.one(".card.warm .cardtag")), "SET 2 OF 2");
-      eq(a.txt(a.one(".card.warm .hero")), "ABOUT " + loads[1] + " KG");
+      eq(a.txt(a.one(".card.warm .hero")), kg(loads[1]));
       a.tap(".card.warm .runbtn");
       has(a.txt(a.one(".card.warm .coach")), top + " kg");
     });

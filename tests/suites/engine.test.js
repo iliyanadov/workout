@@ -110,8 +110,21 @@ module.exports = (test) => {
   test("a layoff eases the load instead of bumping it", () => {
     const soon = openOn("2026-09-14", hackDay([10,10,10,10],[2,2,2,0]));
     const late = openOn("2026-09-28", hackDay([10,10,10,10],[2,2,2,0]));
-    eq(soon.load(), "97.6", "one week later: asks for the notch, holds the weight");
-    eq(late.load(), "87.5", "three weeks later: eased to 90%");
+    eq(soon.load(), "100.1", "one week later: earns the bump. 47.6 sled + 21 x 2.5");
+    eq(late.load(), "87.6", "three weeks later: eased to 90%, landing on a real plate count");
+  });
+
+  test("a machine we have never been shown still refuses to invent a number", () => {
+    // The leg press is the one first-exercise nobody has ever put a number to:
+    // no stack, no sled weight, no step typed in. Guessing 150.7 would be worse
+    // than admitting we do not know.
+    const a = boot({ now: "2026-09-18T09:00:00", days: { "2026-09-11": { ex: {
+      legpress: { w: 145.7, r: [15,15,15,15], q: [2,2,2,0],
+                  g: [false,false,false,false] } }, updatedAt: 1 } } });
+    a.start().warmup();
+    eq(a.openName(), "Leg Press");
+    eq(a.load(), "145.7", "holds the weight rather than inventing the next one");
+    has(a.txt(a.one(".card.open .bumped")), "next weight up");
   });
 
   test("a layoff also lowers the target", () => {

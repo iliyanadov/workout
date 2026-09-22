@@ -26,10 +26,12 @@ module.exports = (test) => {
   });
 
   test("goes-up will not name a weight before the machine's notch is known", () => {
-    // The calf press is not on a stack we have ever been shown, and nobody has
-    // typed its step. Inventing 102.9 kg would be worse than admitting that.
+    // The leg extension is the one left with nothing known about it: no stack,
+    // no sled weight, no step typed in. The calf press used to serve here, until
+    // its 30.4 kg sled was measured. Inventing 47.5 kg would be worse than
+    // admitting we do not know.
     const days = JSON.parse(JSON.stringify(wk1));
-    days["2026-09-11"].ex.calf = { w: 100.4, r: [15,15,15], q: [2,2,0], g: [false,false,false] };
+    days["2026-09-07"].ex.legext = { w: 45, r: [20,20], q: [2,0], g: [false,false] };
     const a = week(days);
     has(a.txt(a.one("#weekbody")), "the next notch up");
   });

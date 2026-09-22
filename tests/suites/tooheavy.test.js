@@ -7,7 +7,7 @@ module.exports = (test) => {
 
   test("a best set below the range floor lowers the weight", () => {
     const a = open(day({ hacksquat: { w:77.6, wr:[97.6,77.6], r:[5,4], q:[0,2], g:[true,false] } }));
-    eq(a.load(), "67.5", "77.6 x 0.9 rounded down to the 2.5 ladder");
+    eq(a.load(), "67.6", "77.6 x 0.9 is 69.84; the sled is 47.6 and plates go on in 2.5s, so 67.6");
     has(a.txt(a.one(".card.open .bumped")), "below the 6–10 range");
   });
 
@@ -31,7 +31,7 @@ module.exports = (test) => {
 
   test("one set below the floor is enough — the load cannot reach the range", () => {
     const a = open(day({ hacksquat: { w:97.6, r:[5], q:[0], g:[true] } }));
-    eq(a.load(), "87.5");
+    eq(a.load(), "87.6");
   });
 
   test("a bodyweight lift is never cut", () => {
@@ -44,7 +44,9 @@ module.exports = (test) => {
 
   test("the cut respects a learned notch", () => {
     const a = open(day({ hacksquat: { w:100, st:5, r:[5,4], q:[0,2], g:[true,false] } }));
-    eq(a.load(), "90", "100 x 0.9 = 90, already on the 5 kg ladder");
+    // A learned step beats the app's guess at the step. It does not mean the sled
+    // stopped weighing 47.6 — with 5 kg jumps from that base, 90 does not exist.
+    eq(a.load(), "87.6", "100 x 0.9 = 90, and 47.6 + 8x5 = 87.6 is the load below it");
   });
 
   test("an accessory that fell short is cut too", () => {

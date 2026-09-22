@@ -9,6 +9,10 @@ if (!process.env.TZ) { process.env.TZ = "Europe/London"; }
 const fs = require("fs");
 const path = require("path");
 const { Fail } = require("./assert.js");
+/* Progress written synchronously: console.log is block-buffered to a file, so a
+   run that stalls shows an empty log and tells you nothing about where. */
+const PROGFILE = process.env.PROGFILE || "";
+const PROG = PROGFILE ? m => fs.appendFileSync(PROGFILE, m + "\n") : () => {};
 
 const only = process.argv[2];
 const dir = path.join(__dirname, "suites");
@@ -27,10 +31,25 @@ const failures = [];
     mod(test);
 
     console.log("\n" + f.replace(".test.js", ""));
+    PROG("SUITE " + f);
     for (const c of cases) {
       if (c.skip) { skipped++; console.log("  ~ " + c.name + "  (skipped)"); continue; }
+      PROG("  case: " + c.name);
       try {
-        await c.fn();
+        /* Race every case against a clock. An assertion that throws inside a
+           setTimeout leaves its promise neither resolved nor rejected, and a
+           bare await on that hangs the whole run at 0% CPU with no output —
+           a failing test that presents as an infinite wait. Never again. */
+        let timer;
+        await Promise.race([
+          Promise.resolve(c.fn()).finally(() => clearTimeout(timer)),
+          new Promise((_, rej) => {
+            timer = setTimeout(
+              () => rej(new Fail("timed out after 15s — the case never settled. An "
+                + "assertion throwing inside a setTimeout callback does this.")), 15000);
+            timer.unref && timer.unref();
+          }),
+        ]);
         pass++;
         console.log("  ✓ " + c.name);
       } catch (e) {
