@@ -8,6 +8,20 @@ module.exports = (test) => {
     "2026-09-07": { ex: { hacksquat: Object.assign(
       { w: 97.6, r, q, g: q.map((v, i) => v === 0 && i < 3) }, extra || {}) }, updatedAt: 1 }
   });
+  // Every session's FIRST exercise now has a measured base or a known stack,
+  // so the "we have never seen this machine" case has to be walked to.
+  const walkTo = (a, name) => {
+    let g = 0;
+    while (g++ < 20 && a.openName() !== name) {
+      const n = a.openName();
+      a.setWeightIfAsked(40);
+      if (!a.logBtn()) break;
+      let g2 = 0; while (a.openName() === n && a.logBtn() && g2++ < 8) { a.logSet("held"); a.skipRest(); }
+      if (a.one(".card.drop")) a.tap(".card.drop .runbtn");
+      if (a.openName() === n) break;
+    }
+    return a;
+  };
   const openOn = (when, days) => {
     const a = boot({ now: when + "T09:00:00", days });
     a.start().warmup();
@@ -115,15 +129,13 @@ module.exports = (test) => {
   });
 
   test("a machine we have never been shown still refuses to invent a number", () => {
-    // The leg press is the one first-exercise nobody has ever put a number to:
-    // no stack, no sled weight, no step typed in. Guessing 150.7 would be worse
-    // than admitting we do not know.
-    const a = boot({ now: "2026-09-18T09:00:00", days: { "2026-09-11": { ex: {
-      legpress: { w: 145.7, r: [15,15,15,15], q: [2,2,2,0],
-                  g: [false,false,false,false] } }, updatedAt: 1 } } });
-    a.start().warmup();
-    eq(a.openName(), "Leg Press");
-    eq(a.load(), "145.7", "holds the weight rather than inventing the next one");
+    // The leg extension is what is left: no stack, no sled weight, no step typed
+    // in. Guessing 47.5 would be worse than admitting we do not know.
+    const a = walkTo(openOn("2026-09-14", { "2026-09-07": { ex: {
+      legext: { w: 45, r: [20,20], q: [2,0], g: [false,false] } }, updatedAt: 1 } }),
+      "Leg Extension");
+    eq(a.openName(), "Leg Extension");
+    eq(a.load(), "45", "holds the weight rather than inventing the next one");
     has(a.txt(a.one(".card.open .bumped")), "next weight up");
   });
 

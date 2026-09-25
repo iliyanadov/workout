@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 47;
+  var BUILD = 48;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -35,7 +35,7 @@
       { id:"reardelt",  n:"Reverse Pec Deck",    s:3, lo:12, hi:20, w:null,  step:2.5, lad:"pin15" },
       { id:"hammer",    n:"Hammer Curl",         s:2, lo:8,  hi:12, w:12,    step:2, db:1 } ] },
     lowerB: { name: "Lower B", sub: "hip dominant", ex: [
-      { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs" },
+      { id:"legpress",  n:"Leg Press",           s:4, lo:10, hi:15, w:145.7, step:5, big:1, pat:"legs", base:75.7 },
       { id:"legcurl",   n:"Seated Leg Curl",     s:3, lo:8,  hi:12, w:73,    step:2.5, reset:1, lad:"pin15" },
       { id:"hipabd",    n:"Hip Abduction",       s:2, lo:10, hi:15, w:null,  step:2.5, lad:"pin15" },
       { id:"adductor",  n:"Adductor",            s:2, lo:10, hi:15, w:66,    step:2.5, lad:"pin15" },

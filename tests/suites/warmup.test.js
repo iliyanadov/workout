@@ -10,11 +10,11 @@ const { eq, ok, no, has, hasNot } = require("../assert.js");
 module.exports = (test) => {
   const SESSIONS = [
     // exact=1 where we know the machine: a plate count and a pin hole are not
-    // approximations. The leg press is the one machine we have never been shown,
-    // so it is the only ramp still allowed to say "about".
+    // approximations. Every machine here has now been measured, so no ramp says
+    // "about" any more - the 45 sled is 75.7 kg and the stacks are 15 lb holes.
     ["Lower A","2026-09-07","Hack Squat",           [47.6, 72.6], "97.6",  1],
     ["Upper A","2026-09-08","Machine Chest Press",  [32, 45],     "59",    1],
-    ["Lower B","2026-09-11","Leg Press",            [75, 110],    "145.7", 0],
+    ["Lower B","2026-09-11","Leg Press",            [75.7, 110.7],"145.7", 1],
     ["Upper B","2026-09-12","Lat Pulldown",         [39, 52],     "73",    1],
   ];
 

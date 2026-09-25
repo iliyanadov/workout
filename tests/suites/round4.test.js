@@ -4,6 +4,20 @@ const { eq, ok, no, has, hasNot } = require("../assert.js");
 /* Defects found by an agent pass that enumerated 1,115 candidate cases against
    the code. Each of these was live in b29. */
 module.exports = (test) => {
+  // Every session's FIRST exercise now has a measured base or a known stack,
+  // so the "we have never seen this machine" case has to be walked to.
+  const walkTo = (a, name) => {
+    let g = 0;
+    while (g++ < 20 && a.openName() !== name) {
+      const n = a.openName();
+      a.setWeightIfAsked(40);
+      if (!a.logBtn()) break;
+      let g2 = 0; while (a.openName() === n && a.logBtn() && g2++ < 8) { a.logSet("held"); a.skipRest(); }
+      if (a.one(".card.drop")) a.tap(".card.drop .runbtn");
+      if (a.openName() === n) break;
+    }
+    return a;
+  };
   const hack = (r, q, extra, d) => ({
     [d || "2026-09-07"]: { ex: { hacksquat: Object.assign(
       { w: 97.6, r, q, g: q.map((v, i) => v === 0 && i < 3) }, extra || {}) }, updatedAt: 1 } });
@@ -82,12 +96,12 @@ module.exports = (test) => {
   });
 
   test("the card asking for a notch does not also claim the weight is new", () => {
-    // Has to be a machine we have never been shown — the hack squat's sled and
-    // plates are known now, so it names the weight instead of asking.
-    const a = boot({ now: "2026-09-18T09:00:00", days: { "2026-09-11": { ex: {
-      legpress: { w: 145.7, r: [15,15,15,15], q: [2,2,2,0],
-                  g: [false,false,false,false] } }, updatedAt: 1 } } });
+    // Has to be a machine we have never been shown. Every lead lift is measured
+    // now, so this walks to the leg extension.
+    const a = boot({ now: "2026-09-14T09:00:00", days: { "2026-09-07": { ex: {
+      legext: { w: 45, r: [20,20], q: [2,0], g: [false,false] } }, updatedAt: 1 } } });
     a.start().warmup();
+    walkTo(a, "Leg Extension");
     has(a.txt(a.one(".card.open .bumped")), "next weight up");
     hasNot(a.txt(a.one(".card.open .herosub")), "New weight");
   });
