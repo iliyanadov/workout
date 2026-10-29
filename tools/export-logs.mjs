@@ -96,7 +96,14 @@ if (!keys.length) die("signed in as " + em + " but the account has no rows. Wron
 const LOGS = join(APP, "logs");
 mkdirSync(LOGS, { recursive: true });
 const build = (readFileSync(join(APP, "app.js"), "utf8").match(/var BUILD = (\d+)/) || [])[1];
-writeFileSync(join(LOGS, "workout-export.json"),
+/* Only rewrite when the TRAINING data changed. The exported timestamp moves
+   every run, so writing unconditionally churned a commit every night whether
+   or not a session had happened. */
+const outFile = join(LOGS, "workout-export.json");
+let prevDays = null;
+try { prevDays = JSON.parse(readFileSync(outFile, "utf8")).days; } catch {}
+const changed = JSON.stringify(prevDays) !== JSON.stringify(days);
+if (changed) writeFileSync(outFile,
   JSON.stringify({ v: 2, build: build ? +build : null, exported: new Date().toISOString(), days }, null, 1));
 
 /* ---- 2. the human-readable copy ---- */
@@ -129,6 +136,7 @@ for (const d of keys.slice().reverse()) {
   lines.push("");
 }
 lines.push("---", "", `${sessions} sessions · ${sets} sets logged · \`!\` marks a set taken to failure early.`, "");
-writeFileSync(join(LOGS, "log.md"), lines.join("\n"));
+if (changed) writeFileSync(join(LOGS, "log.md"), lines.join("\n"));
 
-console.log(`export-logs: ${keys.length} days, ${sessions} sessions, ${sets} sets -> logs/`);
+console.log(`export-logs: ${keys.length} days, ${sessions} sessions, ${sets} sets` +
+            (changed ? " -> logs/" : " (unchanged)"));

@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 48;
+  var BUILD = 49;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -675,14 +675,19 @@
     ]);
   }
 
-  function padGrid(ex,i,target){
+  /* The extra argument widens the ceiling. The grid starts tight because almost every set
+     lands in it, but a set that is genuinely 32 reps has to be loggable — the
+     hard stop at hi+5 silently turned a 32 into a 20 and quietly flattened the
+     one signal the too-light rule reads. */
+  function padGrid(ex,i,target,extra){
     if(!padCtx) return;
     padHead(ex.n+" · set "+(i+1),
       target!=null ? "stop 2 short · target "+target
                    : (!ex.big||i===ex.s-1 ? "to failure · "+ex.lo+"–"+ex.hi : "target "+ex.lo+"–"+ex.hi));
     var g=document.getElementById("padgrid");
     g.className="padgrid"; g.innerHTML="";
-    var from=Math.max(1,ex.lo-4), to=ex.hi+5;
+    var ext=extra||0;
+    var from=Math.max(1,ex.lo-4), to=ex.hi+5+ext;
     for(var v=from;v<=to;v++){
       var b=el("button","padbtn"+(v>=ex.lo&&v<=ex.hi?" inrange":"")+(v===target?" target":""),String(v));
       b.type="button";
@@ -690,6 +695,13 @@
         if(ex.big) padQuestion(ex,i,val); else logSet(ex,i,val,null);
       }); })(v);
       g.appendChild(b);
+    }
+    if(ext<60){
+      var more=el("button","padbtn more","+15");
+      more.type="button";
+      more.setAttribute("aria-label","Show higher rep counts");
+      more.addEventListener("click",function(){ padGrid(ex,i,target,ext+15); });
+      g.appendChild(more);
     }
     document.getElementById("padgrind").classList.add("hidden");
     document.getElementById("padclose").classList.remove("hidden");
@@ -2833,9 +2845,27 @@
     signIn(em).then(function(r){
       btn.disabled=false; btn.textContent="Continue";
       if(r.error){
-        err.textContent = /Invalid login/i.test(r.error.message)
-          ? "That address has no log yet on this server. Check the spelling, or tap ‘Log without signing in’ — it still records everything on this phone."
-          : r.error.message;
+        if(/Invalid login/i.test(r.error.message)){
+          /* Deliberately NOT automatic. Signing a typo up silently would hand
+             back an empty log that looks like the real one with the data gone. */
+          err.textContent="No log on this server for "+em+". Check the spelling first — "+
+            "if it is right, this address has never been used here.";
+          var mk=el("button","quietbtn","Start a new log for "+em);
+          mk.addEventListener("click",function(){
+            mk.disabled=true; mk.textContent="Creating…"; err.textContent="";
+            derive(em).then(function(key){ return sb.auth.signUp({email:em,password:key}); })
+              .then(function(sr){
+                if(sr.error){ err.textContent=sr.error.message; mk.disabled=false;
+                              mk.textContent="Start a new log for "+em; return; }
+                if(sr.data && sr.data.session){ onSignedIn(sr.data.user,em); return; }
+                err.textContent="Account made. Confirm it from the email just sent, then sign in again.";
+              }).catch(function(){ err.textContent="Could not reach the server."; mk.disabled=false; });
+          });
+          err.appendChild(document.createElement("br"));
+          err.appendChild(mk);
+          return;
+        }
+        err.textContent = r.error.message;
         return;
       }
       onSignedIn(r.data.user,em);
