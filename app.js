@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 49;
+  var BUILD = 50;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -679,6 +679,43 @@
      lands in it, but a set that is genuinely 32 reps has to be loggable — the
      hard stop at hi+5 silently turned a 32 into a 20 and quietly flattened the
      one signal the too-light rule reads. */
+  /* The grid covers the ordinary set in one tap. It cannot cover every set —
+     a genuine 32 on the abduction machine is a real number and the old hard
+     stop at hi+5 logged it as 20, flattening the exact figure the too-light
+     rule reads. Widening the grid was the first attempt and it was wrong: by
+     the time you know it was 32, scanning forty tiles for it is slower than
+     saying so. */
+  function padType(ex,i,target){
+    if(!padCtx) return;
+    padHead(ex.n+" · set "+(i+1), "type the reps");
+    var g=document.getElementById("padgrid");
+    g.className="padstack"; g.innerHTML="";
+    var row=el("div","wrow");
+    var box=el("div","wbox");
+    var inp=document.createElement("input");
+    inp.className="winput padnum"; inp.type="number"; inp.inputMode="numeric";
+    inp.setAttribute("aria-label","Reps for set "+(i+1));
+    inp.placeholder="—";
+    box.appendChild(inp); box.appendChild(el("span","wunit","reps"));
+    row.appendChild(box); g.appendChild(row);
+    var go=el("button","runbtn","Log it"); go.type="button"; go.disabled=true;
+    function val(){ var n=parseInt(inp.value,10); return (n>=1 && n<=200) ? n : null; }
+    inp.addEventListener("input",function(){
+      var v=val(); go.disabled = v==null;
+      go.textContent = v==null ? "Log it" : "Log "+v+" reps";
+    });
+    go.addEventListener("click",function(){
+      var v=val(); if(v==null) return;
+      if(ex.big) padQuestion(ex,i,v); else logSet(ex,i,v,null);
+    });
+    g.appendChild(go);
+    g.appendChild(quiet("Back to the pad",function(){ padGrid(ex,i,target); }));
+    document.getElementById("padgrind").classList.add("hidden");
+    document.getElementById("padclose").classList.remove("hidden");
+    document.getElementById("padclear").classList.add("hidden");
+    try{ inp.focus(); }catch(e){}
+  }
+
   function padGrid(ex,i,target,extra){
     if(!padCtx) return;
     padHead(ex.n+" · set "+(i+1),
@@ -686,8 +723,7 @@
                    : (!ex.big||i===ex.s-1 ? "to failure · "+ex.lo+"–"+ex.hi : "target "+ex.lo+"–"+ex.hi));
     var g=document.getElementById("padgrid");
     g.className="padgrid"; g.innerHTML="";
-    var ext=extra||0;
-    var from=Math.max(1,ex.lo-4), to=ex.hi+5+ext;
+    var from=Math.max(1,ex.lo-4), to=ex.hi+5;
     for(var v=from;v<=to;v++){
       var b=el("button","padbtn"+(v>=ex.lo&&v<=ex.hi?" inrange":"")+(v===target?" target":""),String(v));
       b.type="button";
@@ -696,13 +732,11 @@
       }); })(v);
       g.appendChild(b);
     }
-    if(ext<60){
-      var more=el("button","padbtn more","+15");
-      more.type="button";
-      more.setAttribute("aria-label","Show higher rep counts");
-      more.addEventListener("click",function(){ padGrid(ex,i,target,ext+15); });
-      g.appendChild(more);
-    }
+    var typ=el("button","padbtn more","Type");
+    typ.type="button";
+    typ.setAttribute("aria-label","Type the number instead");
+    typ.addEventListener("click",function(){ padType(ex,i,target); });
+    g.appendChild(typ);
     document.getElementById("padgrind").classList.add("hidden");
     document.getElementById("padclose").classList.remove("hidden");
     var hasVal=(function(){ var r=peekEx(sel,ex.id); return !!(r&&r.r&&r.r[i]!=null&&r.r[i]!==""); })();
