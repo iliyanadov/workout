@@ -56,12 +56,16 @@ module.exports = (test) => {
     eq(a.load(), "59");
   });
 
-  test("a bodyweight lift is never raised", () => {
+  /* Reversed in b51: a bodyweight lift CAN be raised, by putting a plate on the
+     belt. 10% of the bare body is nothing, so it moves in whole plate steps. */
+  test("a bodyweight lift is raised onto the belt, in plate steps", () => {
     const days = { "2026-09-12": { ex: { dips: { w: null, r: [20,18,17], q: [2,2,0], g: [false,false,false] } }, updatedAt: 1 } };
     const a = boot({ now: "2026-09-19T09:00:00", days });
     a.start().warmup();
     walkTo(a, "Dips");
-    if (a.openName() === "Dips") hasNot(a.txt(a.one(".card.open")), "past the top");
+    eq(a.openName(), "Dips");
+    has(a.txt(a.one(".card.open")), "past the top");
+    eq(a.load(), "5", "two steps onto an empty belt — not 10% of zero");
   });
 
   test("too light and too heavy cannot both fire", () => {

@@ -4,7 +4,7 @@ const { eq, ok, no, has, hasNot } = require("../assert.js");
 /* The warm-up is guided the same way the session is: one set on screen, a Done
    button, then the same inline countdown. The loads are half and three-quarters
    of the working weight SNAPPED TO SOMETHING THE MACHINE CAN ACTUALLY BE SET TO.
-   On a pin stack "about 37.5 kg" is not a thing, so the pulldown ramps 39 / 52.
+   On a pin stack "about 37.5 kg" is not a thing, so the chest press ramps 32 / 45.
    On the hack squat, whose sled is 47.6 kg empty, half of 97.6 does not exist at
    all — the bare machine is the lightest set there is, so it ramps 47.6 / 72.6. */
 module.exports = (test) => {
@@ -15,7 +15,6 @@ module.exports = (test) => {
     ["Lower A","2026-09-07","Hack Squat",           [47.6, 72.6], "97.6",  1],
     ["Upper A","2026-09-08","Machine Chest Press",  [32, 45],     "59",    1],
     ["Lower B","2026-09-11","Leg Press",            [75.7, 110.7],"145.7", 1],
-    ["Upper B","2026-09-12","Lat Pulldown",         [39, 52],     "73",    1],
   ];
 
   for (const [name, day, exName, loads, top, exact] of SESSIONS) {

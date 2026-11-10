@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 50;
+  var BUILD = 51;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -42,7 +42,7 @@
       { id:"calf",      n:"Calf Press",          s:3, lo:8,  hi:15, w:100.4, step:2.5, base:30.4 },
       { id:"lats",      n:"Lateral Raises",      s:3, lo:10, hi:15, w:10,    step:1, db:1 } ] },
     upperB: { name: "Upper B", sub: "pull bias", ex: [
-      { id:"pulldown",  n:"Lat Pulldown",        s:3, lo:8,  hi:12, w:73,    step:2.5, big:1, pat:"pull", lad:"pin15" },
+      { id:"pullup",    n:"Pull-Up",             s:3, lo:8,  hi:12, w:null,  step:2.5, big:1, bw:1, pat:"pull" },
       { id:"csrow",     n:"Seated Row · Chest Pad", s:3, lo:8,  hi:12, w:59,    step:2.5, big:1, reset:1, lad:"pin15" },
       { id:"dips",      n:"Dips",                s:3, lo:8,  hi:12, w:null,  step:2.5, bw:1, big:1 },
       { id:"bicep",     n:"Bench Bicep Curl",    s:3, lo:8,  hi:12, w:12,    step:2, reset:1, db:1 },
@@ -54,7 +54,13 @@
      them. Without this, dropping an exercise silently blanks sessions that were
      really done, and the app's one promise is that it holds everything. */
   var RETIRED = {
-    hipthrust: { id:"hipthrust", n:"Hip Thrust", s:2, lo:8, hi:12, w:62.7, step:2.5, gone:"2026-09-16" }
+    hipthrust: { id:"hipthrust", n:"Hip Thrust", s:2, lo:8, hi:12, w:62.7, step:2.5, gone:"2026-09-16" },
+    /* Dropped for actual pull-ups. Not a strength call: at 72-88% of bodyweight
+       the stack was lifting him off the seat, so the set ended when he lost the
+       anchor rather than when his lats quit — which is why taking 14 kg OFF in
+       Nov 2026 bought no extra reps. A pull-up has no seat to come out of. */
+    pulldown:  { id:"pulldown", n:"Lat Pulldown", s:3, lo:8, hi:12, w:73, step:2.5,
+                 big:1, pat:"pull", lad:"pin15", gone:"2026-11-10" }
   };
   /* Any exercise the app has ever prescribed, current or not. */
   var ALL_EX = (function(){
@@ -348,8 +354,18 @@
     var got=reps(rec);
     return got.length>=2 && (got[0]-got[got.length-1])<=3 && heldBack(rec);
   }
+  /* What a load reads as. A bodyweight lift's w is what is ON THE BELT, so it
+     shows as "+5 kg"; null is the bare body, which is a real answer, not a gap. */
+  function loadTxt(ex,w){
+    if(w!=null) return (ex.bw?"+":"")+w+" kg";
+    return ex.bw ? "bodyweight" : null;
+  }
+  function moveTxt(ex,from,to){
+    if(ex.bw) return loadTxt(ex,from)+" → "+loadTxt(ex,to);
+    return from+" → "+to+" kg";
+  }
   function earnsBump(ex,rec){
-    if(!rec || ex.bw) return false;          // nothing to add to a bodyweight lift
+    if(!rec) return false;
     var got=reps(rec);
     return got.length>=ex.s && got[got.length-1]>=ex.hi && (rec.q||[])[got.length-1]!==2;
   }
@@ -526,6 +542,22 @@
        reachable: it is the weight. A drop-off with reps still inside the range
        stays ambiguous and keeps the "one bad week is noise" guard. */
     var best = prev.got.reduce(function(m,v){ return v>m?v:m; }, 0);
+    /* A bodyweight lift carries ADDED load, so the percentage rules are the wrong
+       arithmetic: 10% of a +5 kg belt is half a kilo, and 10% of the bare body is
+       nothing at all. It moves in whole plate steps instead, and bottoms out back
+       at bodyweight rather than trying to go below it. */
+    if(ex.bw){
+      var bstp=stepOf(d,ex), on=base, bare=(on==null?1:0);
+      if(prev.got.length>=1 && best >= ex.hi+3)
+        return { w:Math.round(((on||0)+2*bstp)*10)/10, from:on, bare:bare, on:prev.d, tooLight:best };
+      if(earnsBump(ex,prev.e))
+        return { w:Math.round(((on||0)+bstp)*10)/10, from:on, bare:bare, on:prev.d };
+      if(on!=null && prev.got.length>=1 && best < ex.lo){
+        var less=Math.round((on-bstp)*10)/10;
+        return { w:(less>0?less:null), from:on, on:prev.d, tooHeavy:best };
+      }
+      return { w:on, from:null };
+    }
     if(!ex.bw && base!=null && prev.got.length>=1 && best >= ex.hi+3){
       var up = reachable(d,ex,base*1.1,1);
       if(up > base) return { w:up, from:base, on:prev.d, tooLight:best };
@@ -922,7 +954,10 @@
 
   function rampFor(d){
     var order=sessionOrder(d); if(!order.length) return null;
-    var ex=order[0]; if(!ex.big||ex.w==null) return null;
+    var ex=order[0]; if(!ex.big) return null;
+    /* planned() is the authority on whether there is anything to ramp: a
+       bodyweight lift has no plan weight but may well have a belt on. At the
+       bare body there is no lighter set of the movement, so there is no ramp. */
     var w=planned(d,ex).w; if(w==null) return null;
     var stp=stepOf(d,ex), rungs=rungsOf(d,ex), base=baseOf(d,ex);
     if(base!=null){
@@ -1309,13 +1344,13 @@
 
     var prev=lastDone(sel,ex.id);
     if(prev) card.appendChild(el("div","lastline",
-      "Last "+pretty(prev.d)+" · "+(prev.e.w!=null?prev.e.w+" kg":(ex.bw?"bodyweight":"weight not recorded"))+
+      "Last "+pretty(prev.d)+" · "+(loadTxt(ex,prev.e.w)||"weight not recorded")+
       " · "+prev.got.join(" / ")));
 
-    if(pl.from!=null){
+    if(pl.from!=null || pl.bare){
       var bump=el("div","bumped");
-      bump.appendChild(el("span","", "Earned it "+shortD(pl.on)+" · "+pl.from+" → "+pl.w+" kg"));
-      var undo=el("button",null,"Keep "+pl.from);
+      bump.appendChild(el("span","", "Earned it "+shortD(pl.on)+" · "+moveTxt(ex,pl.from,pl.w)));
+      var undo=el("button",null,"Keep "+(loadTxt(ex,pl.from)||pl.from));
       undo.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); renderDay(); });
       bump.appendChild(undo); card.appendChild(bump);
     }
@@ -1732,7 +1767,17 @@
 
     /* weight row */
     var wr=el("div","wrow2");
-    if(ex.bw && pl.w==null){ wr.appendChild(el("div","wbig","Bodyweight")); }
+    if(ex.bw && pl.w==null){
+      wr.appendChild(el("div","wbig","Bodyweight"));
+      /* Once the belt comes out there has to be somewhere to say so, or a loaded
+         dip is unloggable and the lift can never progress past the bare body. */
+      var belt=el("button","wbtn","+ belt"); belt.type="button";
+      belt.setAttribute("aria-label","Add weight to "+ex.n);
+      belt.addEventListener("click",function(){
+        var r=entry(sel,ex.id); r.w=stepOf(sel,ex); touch(); render();
+      });
+      wr.appendChild(belt);
+    }
     else if(pl.w==null){
       /* Nothing to step from. A 6'4" leg extension is twenty taps away from 10kg,
          and the pin stack in front of him is showing the real number. Type it. */
@@ -1862,27 +1907,27 @@
     } else if(pl.tooLight!=null){
       var tl=el("div","bumped");
       tl.appendChild(el("span","", "Best set was "+pl.tooLight+", past the top of "+ex.lo+"–"+ex.hi+
-        " · "+pl.from+" → "+pl.w+" kg"));
-      var keepLight=el("button",null,"Keep "+pl.from);
+        " · "+moveTxt(ex,pl.from,pl.w)));
+      var keepLight=el("button",null,"Keep "+(loadTxt(ex,pl.from)||pl.from));
       keepLight.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       tl.appendChild(keepLight); c.appendChild(tl);
     } else if(pl.tooHeavy!=null){
       var th=el("div","bumped");
       th.appendChild(el("span","", "Best set was "+pl.tooHeavy+", below the "+ex.lo+"–"+ex.hi+
-        " range · "+pl.from+" → "+pl.w+" kg"));
-      var keepHeavy2=el("button",null,"Keep "+pl.from);
+        " range · "+moveTxt(ex,pl.from,pl.w)));
+      var keepHeavy2=el("button",null,"Keep "+(loadTxt(ex,pl.from)||pl.from));
       keepHeavy2.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       th.appendChild(keepHeavy2); c.appendChild(th);
     } else if(pl.ease){
       var ez=el("div","bumped");
-      ez.appendChild(el("span","", pl.ease+" days off · eased "+pl.from+" → "+pl.w+" kg"));
-      var keepHeavy=el("button",null,"Use "+pl.from);
+      ez.appendChild(el("span","", pl.ease+" days off · eased "+moveTxt(ex,pl.from,pl.w)));
+      var keepHeavy=el("button",null,"Use "+(loadTxt(ex,pl.from)||pl.from));
       keepHeavy.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       ez.appendChild(keepHeavy); c.appendChild(ez);
-    } else if(pl.from!=null){
+    } else if(pl.from!=null || pl.bare){
       var bump=el("div","bumped");
-      bump.appendChild(el("span","","Earned it "+shortD(pl.on)+" · "+pl.from+" → "+pl.w+" kg"));
-      var undo=el("button",null,"Keep "+pl.from);
+      bump.appendChild(el("span","","Earned it "+shortD(pl.on)+" · "+moveTxt(ex,pl.from,pl.w)));
+      var undo=el("button",null,"Keep "+(loadTxt(ex,pl.from)||pl.from));
       undo.addEventListener("click",function(){ var r=entry(sel,ex.id); r.w=pl.from; touch(); render(); });
       bump.appendChild(undo); c.appendChild(bump);
     }
@@ -1909,7 +1954,7 @@
         reps(prev.e).map(function(v,ix){ var lw=setW(prev.e,ix); return v+(lw!=null?"@"+lw:""); }).join(" / ")));
     else if(prev)
       c.appendChild(el("div","lastline","Last "+pretty(prev.d)+" · "+
-        (prev.e.w!=null ? prev.e.w+" kg" : (ex.bw?"bodyweight":"weight not recorded"))+
+        (loadTxt(ex,prev.e.w)||"weight not recorded")+
         " · "+prev.got.join(" / ")));
 
     /* rest panel, or the log button */
@@ -2223,7 +2268,7 @@
     l.appendChild(el("span","lmark",bad?"!":"✓"));
     l.appendChild(el("span","lname",ex.n));
     l.appendChild(el("span","lw", mixedLoads(rec) ? "mixed"
-                                  : (rec.w!=null?rec.w+" kg":(ex.bw?"bodyweight":""))));
+                                  : (loadTxt(ex,rec.w)||"")));
     l.appendChild(el("span","lreps",got.join(" / ")));
     var tag = rec.fin && got.length<ex.s ? got.length+" of "+ex.s+" sets"
             : earnsBump(ex,rec) ? "goes up"
@@ -2237,7 +2282,7 @@
     var l=el("button","line pend"); l.type="button";
     l.appendChild(el("span","lmark",""));
     l.appendChild(el("span","lname",ex.n));
-    l.appendChild(el("span","lw",ex.bw?"bodyweight":(pl.w!=null?pl.w+" kg":"set it")));
+    l.appendChild(el("span","lw",loadTxt(ex,pl.w)||"set it"));
     var gotP=reps(peekEx(sel,ex.id));
     l.appendChild(el("span","ltag", gotP.length ? gotP.join(" / ")+" · "+gotP.length+" of "+ex.s
                                                 : ex.s+" × "+ex.lo+"–"+ex.hi));
@@ -2584,8 +2629,19 @@
           }).filter(Boolean);
           body.push("  "+ex.n+" — "+parts.join(" "));
         } else {
-          body.push("  "+ex.n+" "+(e.w!=null?e.w+"kg":(ex.bw?"BW":"weight not recorded"))+" — "+got.join(" "));
+          body.push("  "+ex.n+" "+(e.w!=null?(ex.bw?"+":"")+e.w+"kg":(ex.bw?"BW":"weight not recorded"))+" — "+got.join(" "));
         }
+      });
+      /* The same promise history already keeps: a lift the session no longer
+         prescribes was still really done, and a review that silently drops it
+         is a review of the wrong week. Retiring the pulldown in b51 would
+         otherwise have erased two real sessions from this paste. */
+      if(sess) Object.keys(rec.ex||{}).forEach(function(id){
+        if(sess.ex.some(function(x){ return x.id===id; })) return;
+        var rx=ALL_EX[id], re=rec.ex[id]; if(!rx) return;
+        var rgot=((re.r)||[]).map(function(v,i2){ return (v==null||v==="")?null:v+((re.g||[])[i2]?"!":""); }).filter(Boolean);
+        if(!rgot.length) return;
+        body.push("  "+rx.n+" "+(re.w!=null?(rx.bw?"+":"")+re.w+"kg":(rx.bw?"BW":"weight not recorded"))+" — "+rgot.join(" "));
       });
       if(!body.length && !extra.length && !(rec.note||"").trim()) continue;
       out.push(pretty(ds)+(sess?" — "+sess.name:" — rest")+(extra.length?"  "+extra.join("  "):""));

@@ -97,12 +97,14 @@ module.exports = (test) => {
     a.all(".card.warm .warmmain").forEach(r => has(a.txt(r), "about"));
   });
 
-  test("nothing offers to add weight to a bodyweight lift", () => {
+  /* Reversed in b51: dips and pull-ups take a belt, so clearing the top of the
+     range is an increase like any other and the week has to say so. */
+  test("a bodyweight lift at the top of its range is offered the belt", () => {
     const days = { "2026-09-12": { ex: { dips: { w: null, r: [12,12,12], q: [2,2,0], g: [false,false,false] } } , updatedAt: 1 } };
     const a = boot({ now: "2026-09-12T20:00:00", days });
     a.tab("week");
     const ups = a.txt(a.one("#weekbody"));
-    hasNot(ups.split("Watch")[0], "Dips");
+    has(ups.split("Watch")[0], "Dips");
   });
 
   test("the finish card's one-thing does not contradict its calibration", () => {
