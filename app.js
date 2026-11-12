@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var BUILD = 51;
+  var BUILD = 52;
   var CFG = window.CONFIG || {};
   var REST = { big: 180, other: 90, warm: 45 };
 
@@ -69,16 +69,37 @@
     ORDER.forEach(function(k){ PLAN[k].ex.forEach(function(e){ m[e.id]=e; }); });
     return m;
   })();
-  /* Mon, Tue, Fri, Sat. Two pairs of back-to-back days either way; this puts
-     the long gap mid-week instead of before Monday. */
-  var DEFAULT_SCHED = { lowerA:1, upperA:2, lowerB:5, upperB:6 };
+  /* The default week: two pairs of back-to-back days, so the long gap sits
+     mid-week instead of before Monday.
+     DATED, and it has to be. schedAt() falls through to here for every day that
+     carries no override — including September's — so editing one object in place
+     would not move the schedule, it would rewrite history, relabelling sessions
+     that were really done on a Saturday. Newest first; the first entry whose
+     `from` has arrived wins. */
+  var SCHEDS = [
+    /* Asked for 10 Nov 2026, from the Monday of that week. The same two pairs,
+       both a day earlier, which frees the weekend. */
+    { from:"2026-11-09", sched:{ lowerA:1, upperA:2, lowerB:4, upperB:5 } },
+    /* The block as it started: Mon, Tue, Fri, Sat. */
+    { from:"2026-09-07", sched:{ lowerA:1, upperA:2, lowerB:5, upperB:6 } }
+  ];
+  function schedEra(d){
+    for(var i=0;i<SCHEDS.length;i++) if(SCHEDS[i].from<=d) return SCHEDS[i];
+    return SCHEDS[SCHEDS.length-1];
+  }
+  function defSched(d){ return schedEra(d).sched; }
   function schedAt(d){
-    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=HORIZON; }).sort().reverse();
+    var era=schedEra(d);
+    /* An override tapped in before the plan's own week changed was a preference
+       about the old week, and does not get to shadow the new one. Without this
+       floor a single tap in September would silently eat every later move. */
+    var floor = era.from > HORIZON ? era.from : HORIZON;
+    var ks=Object.keys(state.days).filter(function(k){ return k<=d && k>=floor; }).sort().reverse();
     for(var i=0;i<ks.length;i++){
       var sc=state.days[ks[i]].sched;
       if(sc && Object.keys(sc).length===4) return sc;
     }
-    return DEFAULT_SCHED;
+    return era.sched;
   }
   function byDow(d){
     var sc=schedAt(d), m={};
@@ -2809,9 +2830,13 @@
     var foot=el("div","cardfoot");
     foot.appendChild(el("div","statnote","Changes apply from today. Sessions already logged keep the day they were done on."));
     c.appendChild(foot);
-    var same=ORDER.every(function(k){ return cur[k]===DEFAULT_SCHED[k]; });
-    if(!same) c.appendChild(quiet("Back to Mon · Tue · Fri · Sat",function(){
-      setSchedule(JSON.parse(JSON.stringify(DEFAULT_SCHED)));
+    /* The label has to be read off the default, not typed: the default moved
+       once already and a stale "Back to Mon · Tue · Fri · Sat" would be a lie
+       about what the button does. */
+    var def=defSched(today);
+    var same=ORDER.every(function(k){ return cur[k]===def[k]; });
+    if(!same) c.appendChild(quiet("Back to "+ORDER.map(function(k){ return DOW[def[k]]; }).join(" · "),function(){
+      setSchedule(JSON.parse(JSON.stringify(def)));
     }));
     return c;
   }
